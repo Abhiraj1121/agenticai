@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EKA — Under Maintenance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+  :root{
+    --gold:#C9A84C; --gold-bright:#F0D080; --gold-dim:#8A6E30;
+    --gold-glow:rgba(201,168,76,0.28); --gold-edge:rgba(201,168,76,0.16);
+    --ink:#08050A; --ink2:#0E0810; --ink3:#16101C; --ink4:#1F1626;
+    --surface:rgba(22,16,28,0.72); --surface-edge:rgba(255,255,255,0.06);
+    --text:#EDE8E0; --text2:#A89E88; --text3:#6A6055;
+    --danger:#E0635A; --success:#4FBE82;
+    --font-display:'Cinzel',serif; --font-body:'Rajdhani',sans-serif; --font-mono:'JetBrains Mono',monospace;
+  }
+
+  *,*::before,*::after{ margin:0; padding:0; box-sizing:border-box; }
+
+  html,body{
+    height:100%; width:100%; overflow:hidden;
+    background:var(--ink);
+    font-family:var(--font-body);
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  body{
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    background:
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(201,168,76,0.10), transparent 60%),
+      radial-gradient(ellipse 70% 50% at 85% 110%, rgba(167,120,250,0.06), transparent 60%),
+      linear-gradient(180deg, #08050A 0%, #0C0710 50%, #08050A 100%);
+  }
+
+  #bgCanvas{ position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+
+  /* floating geometric 3D shards drifting in the background */
+  .shard{
+    position:fixed; z-index:1; pointer-events:none;
+    border:1px solid var(--gold-edge);
+    background:linear-gradient(135deg, rgba(201,168,76,0.07), transparent 70%);
+    transform-style:preserve-3d;
+    animation:drift linear infinite, spin3d linear infinite;
+  }
+  @keyframes drift{
+    0%{ transform:translateY(0) rotate(0deg); }
+    100%{ transform:translateY(-40px) rotate(8deg); }
+  }
+  @keyframes spin3d{
+    0%{ transform:rotate3d(0.6,1,0.2,0deg); }
+    100%{ transform:rotate3d(0.6,1,0.2,360deg); }
+  }
+
+  /* ================= MAIN STAGE ================= */
+  .stage{
+    position:relative; z-index:10;
+    perspective:1400px;
+    width:min(560px, 92vw);
+  }
+
+  .card{
+    position:relative;
+    transform-style:preserve-3d;
+    background:var(--surface);
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    border:1px solid var(--surface-edge);
+    border-radius:26px;
+    padding:56px 44px 40px;
+    box-shadow:
+      0 30px 80px rgba(0,0,0,0.55),
+      0 0 0 1px rgba(255,255,255,0.02) inset,
+      0 1px 0 rgba(255,255,255,0.06) inset;
+    transition:transform 0.12s ease-out;
+    text-align:center;
+    overflow:hidden;
+  }
+
+  .card::before{
+    content:''; position:absolute; inset:0; border-radius:26px; padding:1px;
+    background:linear-gradient(135deg, var(--gold-edge), transparent 30%, transparent 70%, var(--gold-edge));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+    pointer-events:none;
+  }
+
+  .card-sheen{
+    position:absolute; inset:-2px; border-radius:26px;
+    background:linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.05) 45%, transparent 60%);
+    transform:translateX(-120%);
+    animation:sheen 7s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes sheen{
+    0%,30%{ transform:translateX(-120%); }
+    55%,100%{ transform:translateX(120%); }
+  }
+
+  /* ================= 3D ORB EMBLEM ================= */
+  .orb-wrap{
+    width:124px; height:124px; margin:0 auto 28px;
+    position:relative;
+    transform-style:preserve-3d;
+    animation:orbFloat 5s ease-in-out infinite;
+  }
+  @keyframes orbFloat{
+    0%,100%{ transform:translateY(0) rotateX(8deg); }
+    50%{ transform:translateY(-9px) rotateX(8deg); }
+  }
+
+  .ring{
+    position:absolute; border-radius:50%;
+    border:1.5px solid var(--gold-edge);
+    transform-style:preserve-3d;
+  }
+  .ring.r1{ inset:0; border-color:rgba(201,168,76,0.45); animation:spinY 9s linear infinite; }
+  .ring.r2{ inset:14px; border-color:rgba(201,168,76,0.3); animation:spinX 7s linear infinite reverse; }
+  .ring.r3{ inset:-12px; border-color:rgba(201,168,76,0.14); animation:spinY 14s linear infinite; }
+  @keyframes spinY{ from{ transform:rotateY(0deg) rotateX(60deg); } to{ transform:rotateY(360deg) rotateX(60deg); } }
+  @keyframes spinX{ from{ transform:rotateX(0deg) rotateZ(20deg); } to{ transform:rotateX(360deg) rotateZ(20deg); } }
+
+  .orb-core{
+    position:absolute; inset:30px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--gold-bright), var(--gold) 55%, var(--gold-dim) 100%);
+    box-shadow:
+      0 0 30px var(--gold-glow),
+      0 0 60px rgba(201,168,76,0.18),
+      inset -4px -6px 10px rgba(0,0,0,0.35),
+      inset 3px 4px 8px rgba(255,255,255,0.35);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-weight:700; font-size:13px; color:var(--ink);
+    letter-spacing:0.05em;
+    animation:corePulse 3s ease-in-out infinite;
+  }
+  @keyframes corePulse{
+    0%,100%{ box-shadow:0 0 28px var(--gold-glow), 0 0 56px rgba(201,168,76,0.16), inset -4px -6px 10px rgba(0,0,0,0.35), inset 3px 4px 8px rgba(255,255,255,0.35); }
+    50%{ box-shadow:0 0 42px var(--gold-glow), 0 0 80px rgba(201,168,76,0.26), inset -4px -6px 10px rgba(0,0,0,0.35), inset 3px 4px 8px rgba(255,255,255,0.4); }
+  }
+
+  /* ================= TEXT ================= */
+  .eyebrow{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:0.32em; text-transform:uppercase;
+    color:var(--gold); opacity:0.85; margin-bottom:14px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .eyebrow .dot{
+    width:6px; height:6px; border-radius:50%; background:var(--gold);
+    box-shadow:0 0 8px var(--gold); animation:blink 1.6s ease-in-out infinite;
+  }
+  @keyframes blink{ 0%,100%{ opacity:1; } 50%{ opacity:0.25; } }
+
+  h1.brand{
+    font-family:var(--font-display); font-weight:800; font-size:42px; letter-spacing:0.14em;
+    background:linear-gradient(135deg, var(--gold-bright), var(--gold) 55%, var(--gold-dim));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    line-height:1; margin-bottom:10px;
+  }
+
+  h2.headline{
+    font-family:var(--font-display); font-weight:600; font-size:19px; letter-spacing:0.04em;
+    color:var(--text); margin-bottom:16px;
+  }
+
+  p.body-text{
+    font-size:15.5px; line-height:1.65; color:var(--text2); font-weight:500;
+    max-width:420px; margin:0 auto 28px;
+  }
+
+  /* progress */
+  .progress-wrap{ margin:0 auto 30px; max-width:360px; }
+  .progress-meta{
+    display:flex; justify-content:space-between; font-family:var(--font-mono);
+    font-size:10.5px; letter-spacing:0.1em; color:var(--text3); margin-bottom:8px; text-transform:uppercase;
+  }
+  .progress-meta span.val{ color:var(--gold); }
+  .progress-track{
+    height:6px; border-radius:99px; background:rgba(255,255,255,0.06);
+    border:1px solid var(--surface-edge); overflow:hidden; position:relative;
+  }
+  .progress-fill{
+    height:100%; width:0%; border-radius:99px;
+    background:linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-bright));
+    box-shadow:0 0 12px var(--gold-glow);
+    animation:fillBar 2.2s 0.3s cubic-bezier(0.4,0,0.2,1) forwards;
+    position:relative;
+  }
+  .progress-fill::after{
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    width:40px; animation:shimmer 1.8s linear infinite;
+  }
+  @keyframes fillBar{ to{ width:74%; } }
+  @keyframes shimmer{ 0%{ transform:translateX(-40px); } 100%{ transform:translateX(280px); } }
+
+  /* buttons */
+  .actions{ display:flex; flex-direction:column; gap:12px; align-items:center; }
+
+  .btn{
+    font-family:var(--font-body); font-weight:600; font-size:14.5px; letter-spacing:0.02em;
+    border-radius:12px; cursor:pointer; transition:transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    width:100%; max-width:360px; padding:14px 22px;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    text-decoration:none;
+  }
+  .btn:active{ transform:translateY(1px) scale(0.99); }
+
+  .btn-outline{
+    background:rgba(255,255,255,0.02);
+    border:1px solid var(--gold-edge);
+    color:var(--gold-bright);
+  }
+  .btn-outline:hover{
+    border-color:var(--gold);
+    box-shadow:0 0 0 1px var(--gold-edge), 0 8px 24px rgba(201,168,76,0.12);
+    transform:translateY(-1px);
+  }
+
+  .btn-solid{
+    background:linear-gradient(135deg, var(--gold-bright), var(--gold) 60%, var(--gold-dim));
+    color:var(--ink); border:none; font-family:var(--font-display); font-weight:700; letter-spacing:0.05em;
+    box-shadow:0 10px 28px rgba(201,168,76,0.28);
+  }
+  .btn-solid:hover{ transform:translateY(-2px); box-shadow:0 14px 36px rgba(201,168,76,0.4); }
+
+  /* reveal panel for dev-version confirm */
+  .dev-panel{
+    max-height:0; opacity:0; overflow:hidden;
+    transition:max-height 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.4s ease, margin-top 0.5s ease;
+    width:100%; max-width:360px;
+  }
+  .dev-panel.open{
+    max-height:220px; opacity:1; margin-top:6px;
+  }
+  .dev-panel-inner{
+    border:1px dashed var(--gold-edge); border-radius:14px; padding:16px 18px 18px;
+    background:rgba(201,168,76,0.04);
+  }
+  .dev-panel-inner p{
+    font-family:var(--font-mono); font-size:11px; color:var(--text3);
+    letter-spacing:0.04em; line-height:1.6; margin-bottom:14px; text-align:left;
+  }
+  .dev-panel-inner p .tag{ color:var(--gold); }
+
+  footer.note{
+    margin-top:28px; padding-top:20px; border-top:1px solid var(--surface-edge);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    font-family:var(--font-mono); font-size:10.5px; color:var(--text3); letter-spacing:0.06em;
+  }
+  footer.note .pulse{
+    width:7px; height:7px; border-radius:50%; background:var(--success);
+    box-shadow:0 0 8px var(--success); animation:blink 2s ease-in-out infinite;
+  }
+
+  @media (max-width:480px){
+    .card{ padding:44px 24px 32px; border-radius:20px; }
+    h1.brand{ font-size:34px; }
+    .orb-wrap{ width:100px; height:100px; }
+    .orb-core{ inset:24px; font-size:11px; }
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{ animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+
+<div class="stage">
+  <div class="card" id="card">
+    <div class="card-sheen"></div>
+
+    <div class="orb-wrap">
+      <div class="ring r3"></div>
+      <div class="ring r1"></div>
+      <div class="ring r2"></div>
+      <div class="orb-core">EKA</div>
+    </div>
+
+    <div class="eyebrow"><span class="dot"></span> System Status — Maintenance</div>
+
+    <h1 class="brand">EKA</h1>
+    <h2 class="headline">Recalibrating the core.</h2>
+
+    <p class="body-text">
+      We're tuning Eka's engine to make every conversation faster and sharper.
+      The assistant will be back online shortly — thank you for your patience.
+    </p>
+
+    <div class="progress-wrap">
+      <div class="progress-meta">
+        <span>Restoration progress</span>
+        <span class="val" id="progressLabel">74%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-outline" id="devToggle">
+        ⚙ Wants to try dev version
+      </button>
+
+      <div class="dev-panel" id="devPanel">
+        <div class="dev-panel-inner">
+          <p>You're about to leave the maintenance page and open <span class="tag">eka-dev1</span> — an early, in-progress build. Some features may be unstable.</p>
+          <a class="btn btn-solid" href="https://abhiraj1121.github.io/eka-dev1" target="_blank" rel="noopener noreferrer">
+            Continue →
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <footer class="note">
+      <span class="pulse"></span> Maintenance in progress · Eka will return soon
+    </footer>
+  </div>
+</div>
+
+<script>
+  // ---------- Starfield / particle background ----------
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let w, h, particles;
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function initParticles(){
+    const count = Math.min(110, Math.floor((w*h)/14000));
+    particles = Array.from({length: count}, () => ({
+      x: Math.random()*w,
+      y: Math.random()*h,
+      z: Math.random()*1 + 0.2,
+      r: Math.random()*1.6 + 0.4,
+      vy: (Math.random()*0.15 + 0.03),
+      tw: Math.random()*Math.PI*2
+    }));
+  }
+  initParticles();
+  window.addEventListener('resize', initParticles);
+
+  function drawParticles(){
+    ctx.clearRect(0,0,w,h);
+    for(const p of particles){
+      p.tw += 0.02;
+      const alpha = 0.25 + Math.abs(Math.sin(p.tw))*0.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r*p.z, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(201,168,76,${alpha*p.z})`;
+      ctx.fill();
+      p.y -= p.vy;
+      if(p.y < -5){ p.y = h+5; p.x = Math.random()*w; }
+    }
+    requestAnimationFrame(drawParticles);
+  }
+  drawParticles();
+
+  // ---------- Drifting 3D shards ----------
+  const shardCount = window.innerWidth < 600 ? 3 : 6;
+  for(let i=0;i<shardCount;i++){
+    const s = document.createElement('div');
+    s.className = 'shard';
+    const size = 30 + Math.random()*60;
+    s.style.width = size+'px';
+    s.style.height = size+'px';
+    s.style.left = Math.random()*100+'vw';
+    s.style.top = Math.random()*100+'vh';
+    s.style.borderRadius = Math.random() > 0.5 ? '50%' : '8px';
+    s.style.animationDuration = (8+Math.random()*10)+'s, '+(14+Math.random()*14)+'s';
+    s.style.opacity = (0.3 + Math.random()*0.4).toFixed(2);
+    document.body.appendChild(s);
+  }
+
+  // ---------- 3D tilt on the card following the pointer ----------
+  const card = document.getElementById('card');
+  const stage = document.querySelector('.stage');
+  stage.addEventListener('mousemove', (e) => {
+    const rect = stage.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    card.style.transform = `rotateY(${x*8}deg) rotateX(${-y*8}deg) translateZ(0)`;
+  });
+  stage.addEventListener('mouseleave', () => {
+    card.style.transform = `rotateY(0deg) rotateX(0deg)`;
+  });
+
+  // ---------- Progress label sync ----------
+  const progressLabel = document.getElementById('progressLabel');
+  let pct = 0;
+  const target = 74;
+  const start = performance.now();
+  function animateLabel(now){
+    const t = Math.min(1, (now-start)/2200);
+    pct = Math.floor(t*target);
+    progressLabel.textContent = pct + '%';
+    if(t < 1) requestAnimationFrame(animateLabel);
+  }
+  requestAnimationFrame(animateLabel);
+
+  // ---------- Dev version reveal ----------
+  const devToggle = document.getElementById('devToggle');
+  const devPanel = document.getElementById('devPanel');
+  devToggle.addEventListener('click', () => {
+    devPanel.classList.toggle('open');
+    devToggle.textContent = devPanel.classList.contains('open')
+      ? '✕ Hide dev version option'
+      : '⚙ Wants to try dev version';
+  });
+</script>
+
+</body>
+</html>
