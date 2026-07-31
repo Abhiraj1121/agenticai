@@ -9,7 +9,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from flask_cors import CORS
-from ddgs import DDGS
+#from ddgs import DDGS
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
@@ -169,6 +169,22 @@ def generate_image(prompt: str) -> tuple[str | None, str | None]:
         return None, "Image generation failed — please try again."
 
 
+def tool_generate_image(args: dict, api_key: str = None) -> tuple[dict | None, str | None]:
+    """Wraps the existing Pollinations image generator in the standard tool
+    contract so the auto-router can call it. api_key is accepted for dispatcher-
+    signature consistency but unused — Pollinations is free, no key needed."""
+    prompt = (args.get("prompt") or "").strip()
+    if not prompt:
+        return None, "Describe what you'd like me to draw."
+    if len(prompt) > 600:
+        return None, "That prompt is a bit long — try trimming it."
+
+    data_url, err = generate_image(prompt)
+    if err:
+        return None, err
+    return {"image": data_url, "prompt": prompt, "source": "pollinations"}, None
+
+
 # ══════════════════════════════════════
 # TOOL ORCHESTRATOR — Module 2: AI Code Writer & Static Verification
 # Generates code via a code-specialized model, then runs STATIC-ONLY checks
@@ -177,9 +193,10 @@ def generate_image(prompt: str) -> tuple[str | None, str | None]:
 CODE_MODEL = "poolside/laguna-xs-2.1:free"
 
 CODEGEN_SYSTEM = (
-    "You are a precise code generation engine. Given a task description and target "
-    "language, output ONLY a single fenced code block in that language — no prose, "
-    "no explanation before or after, no multiple alternatives. Write clean, complete, "
+    "You are a precise code generation engine. Respond with NOTHING but a single "
+    "fenced code block in the requested language. Do not explain your reasoning, "
+    "do not think out loud, do not offer alternatives — the first characters of "
+    "your response must be the opening code fence itself. Write clean, complete, "
     "idiomatic, production-quality code with brief inline comments where genuinely useful."
 )
 
@@ -194,10 +211,12 @@ LANG_EXT = {
 
 
 def extract_code(raw: str) -> str:
-    """Pulls the first fenced code block out of a model response; falls back to
-    the raw text (stripped) if the model didn't fence it."""
+    """Only accepts a properly closed fenced code block. Deliberately does NOT
+    fall back to raw text on a miss — unfenced/truncated output is usually the
+    model's reasoning prose, not actual code, and showing that to the user is
+    worse than a clean 'please try again' error."""
     m = CODE_FENCE_RE.search(raw or "")
-    return m.group(1).strip() if m else (raw or "").strip()
+    return m.group(1).strip() if m else ""
 
 
 def verify_code_static(code: str, language: str) -> dict:
@@ -244,8 +263,19 @@ def tool_generate_code(args: dict, api_key: str = None) -> tuple[dict | None, st
         return None, err
 
     code = extract_code(raw)
+
+    # One retry with a blunter reminder — catches the occasional response that
+    # opens with reasoning/prose instead of the fence despite the system prompt.
     if not code:
-        return None, "The model didn't return any code — try rephrasing your request."
+        retry_input = f"{user_input}\n\nReminder: reply with ONLY the fenced code block. No reasoning, no explanation."
+        raw, err = ai_query_single_model(CODE_MODEL, CODEGEN_SYSTEM, retry_input, api_key=api_key,
+                                          max_tokens=1800, temp=0.15)
+        if err:
+            return None, err
+        code = extract_code(raw)
+
+    if not code:
+        return None, "The model didn't return any code — try rephrasing your request, or ask for something simpler."
 
     verification = verify_code_static(code, language)
     ext = LANG_EXT.get(language, "txt")
@@ -302,19 +332,26 @@ def tool_generate_avatar(args: dict, api_key: str = None) -> tuple[dict | None, 
 DIAGRAM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
 
 DIAGRAM_SYSTEM = (
-    "You are a diagram generation engine. Given a description, output ONLY a single "
-    "fenced ```mermaid code block containing valid Mermaid.js syntax — no prose, no "
-    "explanation before or after. Pick the most fitting diagram type (flowchart, "
-    "sequenceDiagram, classDiagram, stateDiagram-v2, erDiagram, gantt, mindmap, etc). "
-    "Keep node labels short and syntax strictly valid — no unescaped special characters."
+    "You are a diagram generation engine. Respond with NOTHING but a single fenced "
+    "```mermaid code block containing valid Mermaid.js syntax. Do not explain your "
+    "reasoning, do not think out loud, do not describe your plan — the first characters "
+    "of your response must be the opening code fence itself. Pick the most fitting "
+    "diagram type (flowchart, sequenceDiagram, classDiagram, stateDiagram-v2, erDiagram, "
+    "gantt, mindmap, etc). Keep node labels short and syntax strictly valid — no "
+    "unescaped special characters. Keep the diagram compact enough to fit comfortably "
+    "within the response length."
 )
 
 MERMAID_FENCE_RE = re.compile(r"```(?:mermaid)?\n(.*?)```", re.DOTALL)
 
 
 def extract_mermaid(raw: str) -> str:
+    """Only accepts a properly closed ```mermaid fence. Deliberately does NOT fall
+    back to raw text on a miss — unfenced/truncated output is usually the model's
+    reasoning prose, not a diagram, and showing that to the user is worse than
+    a clean 'please try again' error."""
     m = MERMAID_FENCE_RE.search(raw or "")
-    return m.group(1).strip() if m else (raw or "").strip()
+    return m.group(1).strip() if m else ""
 
 
 def verify_mermaid_static(code: str) -> dict:
@@ -339,13 +376,28 @@ def tool_generate_diagram(args: dict, api_key: str = None) -> tuple[dict | None,
         return None, "Prompt is too long — keep it under 1500 characters."
 
     raw, err = ai_query_single_model(DIAGRAM_MODEL, DIAGRAM_SYSTEM, prompt, api_key=api_key,
-                                      max_tokens=900, temp=0.3)
+                                      max_tokens=2000, temp=0.3)
     if err:
         return None, err
 
     mermaid_code = extract_mermaid(raw)
+
+    # One retry with a blunter reminder — catches the occasional response that
+    # opens with reasoning/prose instead of the fence despite the system prompt.
     if not mermaid_code:
-        return None, "The model didn't return diagram syntax — try rephrasing your request."
+        retry_prompt = (
+            f"{prompt}\n\n"
+            "Reminder: reply with ONLY the fenced ```mermaid block. No reasoning, "
+            "no explanation, nothing before or after it."
+        )
+        raw, err = ai_query_single_model(DIAGRAM_MODEL, DIAGRAM_SYSTEM, retry_prompt, api_key=api_key,
+                                          max_tokens=2000, temp=0.2)
+        if err:
+            return None, err
+        mermaid_code = extract_mermaid(raw)
+
+    if not mermaid_code:
+        return None, "The model didn't return diagram syntax — try rephrasing your request, or ask for something simpler."
 
     verification = verify_mermaid_static(mermaid_code)
     return {"mermaid": mermaid_code, "prompt": prompt, "verification": verification}, None
@@ -543,6 +595,11 @@ TOOLS = {
         "desc": "Generate a document (report/resume/article/etc) exported as md/docx/pdf.",
         "needs_key": True,
     },
+    "generate_image": {
+        "fn": tool_generate_image,
+        "desc": "Generate a custom illustration/scene from a description, via Pollinations (free, no key).",
+        "needs_key": False,
+    },
 }
 
 
@@ -613,6 +670,20 @@ TOOL_SCHEMAS = [
                     "format": {"type": "string", "enum": sorted(DOC_FORMATS), "description": "Export file format."},
                 },
                 "required": ["topic"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_image",
+            "description": "Generate a custom illustration, picture, or scene from a text description — e.g. 'a cat eating ice cream', 'a sunset over mountains', 'a robot playing guitar'. Use this for any request to draw, create, generate, paint, or make a PICTURE or IMAGE of something. Distinct from generate_avatar, which only makes small stylized profile-icon avatars — use generate_image for anything more detailed or scene-like.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "Description of the image/scene to generate."},
+                },
+                "required": ["prompt"],
             },
         },
     },
