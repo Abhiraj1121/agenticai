@@ -1527,7 +1527,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ══════════════════════════════
-  // LANGUAGE MAP — app language code → BCP-47 locale for TTS/STT
+  // LANGUAGE MAP — app language code → BCP-47 locale for TTS
   // ══════════════════════════════
   const LANG_LOCALE = {
     en: 'en-IN', hi: 'hi-IN', bn: 'bn-IN', ta: 'ta-IN', te: 'te-IN',
