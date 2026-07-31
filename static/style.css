@@ -356,9 +356,32 @@ html,body { height:100%; font-family:var(--font-body); font-size:15px; color:var
 .think-bar:nth-child(4){animation-delay:0.3s}
 .think-bar:nth-child(5){animation-delay:0.4s}
 @keyframes thinkWave{0%,100%{transform:scaleY(0.35);opacity:0.55}50%{transform:scaleY(1);opacity:1}}
-.think-label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3);position:relative;overflow:hidden;background:linear-gradient(90deg,var(--text3) 40%,var(--gold-bright) 50%,var(--text3) 60%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:thinkShimmer 1.8s linear infinite}
+.think-label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3);position:relative;overflow:hidden;background:linear-gradient(90deg,var(--text3) 40%,var(--gold-bright) 50%,var(--text3) 60%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:thinkShimmer 1.8s linear infinite;transition:opacity 0.2s ease,transform 0.2s ease}
+.think-label.think-label-swap{opacity:0;transform:translateY(-3px)}
 @keyframes thinkShimmer{0%{background-position:120% 0}100%{background-position:-20% 0}}
 body.reduce-motion .think-label{animation:none;-webkit-text-fill-color:var(--text3)}
+
+/* Image generation loader — dedicated shimmer-frame animation, distinct from the generic thinking bubble */
+.imggen-loader{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--gold-dim);border-radius:var(--radius-md) var(--radius-md) var(--radius-md) 4px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px}
+.imggen-frame{position:relative;width:120px;height:80px;border-radius:10px;overflow:hidden;background:linear-gradient(135deg,var(--ink3),var(--ink4));border:1px solid var(--border)}
+.imggen-shimmer{position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,var(--gold-glow) 50%,transparent 70%);background-size:220% 100%;animation:imggenSweep 1.6s ease-in-out infinite}
+@keyframes imggenSweep{0%{background-position:150% 0}100%{background-position:-50% 0}}
+.imggen-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gold);opacity:0.7;animation:imggenPulse 1.8s ease-in-out infinite}
+.imggen-icon svg{width:26px;height:26px}
+@keyframes imggenPulse{0%,100%{opacity:0.45;transform:scale(0.94)}50%{opacity:0.9;transform:scale(1.04)}}
+body.reduce-motion .imggen-shimmer,body.reduce-motion .imggen-icon{animation:none}
+
+/* API key banner — slides/fades in below the header, dismissible */
+.apikey-banner{display:flex;align-items:center;gap:10px;padding:10px 18px;margin:0;background:linear-gradient(90deg,var(--gold-glow),transparent);border-bottom:1px solid var(--border);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:13px;opacity:0;max-height:0;overflow:hidden;transition:opacity 0.32s ease,max-height 0.32s ease,padding 0.32s ease}
+.apikey-banner.show{opacity:1;max-height:60px;padding:10px 18px}
+.apikey-banner-icon{display:flex;align-items:center;color:var(--gold);flex-shrink:0}
+.apikey-banner-icon svg{width:16px;height:16px}
+.apikey-banner-text{flex:1;min-width:0}
+.apikey-banner-btn{background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:var(--ink);border:none;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;padding:6px 14px;border-radius:99px;cursor:pointer;white-space:nowrap;transition:transform 0.2s ease}
+.apikey-banner-btn:hover{transform:translateY(-1px)}
+.apikey-banner-close{background:none;border:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;padding:4px;flex-shrink:0}
+.apikey-banner-close svg{width:14px;height:14px}
+.apikey-banner-close:hover{color:var(--text)}
 .mic-status{font-family:var(--font-mono);font-size:11px;color:var(--danger);letter-spacing:0.08em;min-width:0;white-space:nowrap}
 
 /* Toast icon */

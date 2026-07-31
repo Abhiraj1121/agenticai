@@ -134,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let imageGenEnabled  = false;
   let recognition      = null;
   let isThinking       = false;
+  let activeSpeakBtn   = null; // tracks which message's "read aloud" button is currently active
   let attachedImage    = null; // base64 string
   let currentSessionId = null;
 
@@ -237,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setUserApiKey(val);
     settingApiKey.value = '';
     refreshApiKeyStatus();
+    hideApiKeyBanner();
     showToast('API key saved locally', ICONS.bot);
   });
 
@@ -246,6 +248,57 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshApiKeyStatus();
     showToast('API key removed', ICONS.bot);
   });
+
+  // ══════════════════════════════
+  // API KEY BANNER — shown only when NEITHER the server nor the user has a
+  // configured key (checked via /api/health), so it never falsely nags users
+  // relying on the shared server key.
+  // ══════════════════════════════
+  const API_KEY_BANNER_DISMISS_KEY = 'eka-apikey-banner-dismissed';
+
+  function showApiKeyBanner() {
+    if (document.getElementById('apiKeyBanner')) return;
+    if (sessionStorage.getItem(API_KEY_BANNER_DISMISS_KEY) === '1') return;
+
+    const banner = document.createElement('div');
+    banner.id = 'apiKeyBanner';
+    banner.className = 'apikey-banner';
+    banner.innerHTML = `
+      <span class="apikey-banner-icon">${ICONS.bot}</span>
+      <span class="apikey-banner-text">No AI key configured — add your OpenRouter key to start chatting.</span>
+      <button class="apikey-banner-btn" id="apiKeyBannerAdd">Add Key</button>
+      <button class="apikey-banner-close" id="apiKeyBannerClose" title="Dismiss">${ICONS.cross}</button>`;
+
+    const header = document.querySelector('.chat-header');
+    header?.insertAdjacentElement('afterend', banner);
+    requestAnimationFrame(() => banner.classList.add('show'));
+
+    document.getElementById('apiKeyBannerAdd')?.addEventListener('click', () => {
+      openSettingsBtn?.click();
+      setTimeout(() => settingApiKey?.focus(), 320);
+    });
+    document.getElementById('apiKeyBannerClose')?.addEventListener('click', () => {
+      sessionStorage.setItem(API_KEY_BANNER_DISMISS_KEY, '1');
+      hideApiKeyBanner();
+    });
+  }
+
+  function hideApiKeyBanner() {
+    const banner = document.getElementById('apiKeyBanner');
+    if (!banner) return;
+    banner.classList.remove('show');
+    setTimeout(() => banner.remove(), 320);
+  }
+
+  (async function checkApiKeyStatus() {
+    if (getUserApiKey()) return; // user already has BYOK set — no need to check server
+    try {
+      const res = await fetch(`${API_BASE}/api/health`).then(r => r.json());
+      if (res && res.ai_configured === false) showApiKeyBanner();
+    } catch {
+      // Health check failing silently is fine — don't nag the user over a network blip.
+    }
+  })();
 
   userCardBtn?.addEventListener('click', () => { openModal(userOverlay); });
   clearChatBtn?.addEventListener('click', () => { startNewSession(); });
@@ -752,6 +805,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (who === 'bot') {
+      const speakBtn = document.createElement('button');
+      speakBtn.className = 'bact-btn'; speakBtn.title = 'Read aloud'; speakBtn.innerHTML = ICONS.unmute;
+      speakBtn.addEventListener('click', () => toggleSpeakBtn(speakBtn, text));
+      actions.appendChild(speakBtn);
+
       if (idx !== null && source) {
         const regenBtn = document.createElement('button');
         regenBtn.className = 'bact-btn'; regenBtn.title = 'Regenerate response'; regenBtn.innerHTML = ICONS.regenerate;
@@ -1263,13 +1321,82 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const THINKING_PHRASES = ['EKA is thinking', "Let's make magic happen", 'Working on it', 'Still thinking'];
+  const THINKING_LATE_PHRASE = 'Responding in background';
+  let typingPhraseTimer = null;
+
   function addTyping() {
     if (voiceOnly) return;
     const t = document.createElement('div'); t.className = 'bubble bot typing'; t.id = 'typingIndicator';
-    t.innerHTML = `<div class="think-wave"><span class="think-bar"></span><span class="think-bar"></span><span class="think-bar"></span><span class="think-bar"></span><span class="think-bar"></span></div><span class="think-label">EKA is thinking</span>`;
+    t.innerHTML = `<div class="think-wave"><span class="think-bar"></span><span class="think-bar"></span><span class="think-bar"></span><span class="think-bar"></span><span class="think-bar"></span></div><span class="think-label" id="thinkLabel">${THINKING_PHRASES[0]}</span>`;
     chat.appendChild(t); chat.scrollTop = chat.scrollHeight;
+
+    let phraseIdx = 0, elapsedMs = 0;
+    clearInterval(typingPhraseTimer);
+    typingPhraseTimer = setInterval(() => {
+      const label = document.getElementById('thinkLabel');
+      if (!label) { clearInterval(typingPhraseTimer); return; }
+      elapsedMs += 3000;
+      label.classList.add('think-label-swap');
+      setTimeout(() => {
+        const l = document.getElementById('thinkLabel');
+        if (!l) return;
+        if (elapsedMs >= 15000) {
+          l.textContent = THINKING_LATE_PHRASE;
+        } else {
+          phraseIdx = (phraseIdx + 1) % THINKING_PHRASES.length;
+          l.textContent = THINKING_PHRASES[phraseIdx];
+        }
+        l.classList.remove('think-label-swap');
+      }, 200);
+    }, 3000);
   }
-  function removeTyping() { document.getElementById('typingIndicator')?.remove(); }
+  function removeTyping() {
+    clearInterval(typingPhraseTimer); typingPhraseTimer = null;
+    document.getElementById('typingIndicator')?.remove();
+  }
+
+  // ══════════════════════════════
+  // IMAGE GENERATION LOADER — dedicated animated placeholder (shimmer sweep +
+  // pulsing frame) shown while /api/image is generating, distinct from the
+  // generic thinking bubble.
+  // ══════════════════════════════
+  const IMGGEN_PHRASES = ['Generating image…', 'Painting pixels…', 'Adding final touches…'];
+  let imgGenPhraseTimer = null;
+
+  function addImageGenLoader() {
+    if (voiceOnly) return;
+    const row = document.createElement('div'); row.className = 'bubble-row bot';
+    row.id = 'imgGenLoader';
+    const bubble = document.createElement('div'); bubble.className = 'bubble bot imggen-loader';
+    bubble.innerHTML = `
+      <div class="imggen-frame">
+        <div class="imggen-shimmer"></div>
+        <div class="imggen-icon">${ICONS.image}</div>
+      </div>
+      <span class="think-label" id="imgGenLabel">${IMGGEN_PHRASES[0]}</span>`;
+    row.appendChild(bubble);
+    chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
+
+    let idx = 0;
+    clearInterval(imgGenPhraseTimer);
+    imgGenPhraseTimer = setInterval(() => {
+      const label = document.getElementById('imgGenLabel');
+      if (!label) { clearInterval(imgGenPhraseTimer); return; }
+      label.classList.add('think-label-swap');
+      setTimeout(() => {
+        const l = document.getElementById('imgGenLabel');
+        if (!l) return;
+        idx = (idx + 1) % IMGGEN_PHRASES.length;
+        l.textContent = IMGGEN_PHRASES[idx];
+        l.classList.remove('think-label-swap');
+      }, 200);
+    }, 2200);
+  }
+  function removeImageGenLoader() {
+    clearInterval(imgGenPhraseTimer); imgGenPhraseTimer = null;
+    document.getElementById('imgGenLoader')?.remove();
+  }
 
   // ══════════════════════════════
   // STATUS
@@ -1408,7 +1535,7 @@ document.addEventListener('DOMContentLoaded', () => {
       chatHistory.push({ role: 'user', content: cleaned });
       addBubble(cleaned, 'user', '', false, null, chatHistory.length - 1);
       msg.value = '';
-      addTyping(); isThinking = true; setStatus('thinking');
+      addImageGenLoader(); isThinking = true; setStatus('thinking');
 
       try {
         const res = await fetch(`${API_BASE}/api/image`, {
@@ -1416,7 +1543,7 @@ document.addEventListener('DOMContentLoaded', () => {
           body: JSON.stringify({ prompt: cleaned })
         }).then(r => r.json());
 
-        removeTyping(); isThinking = false; setStatus('ready');
+        removeImageGenLoader(); isThinking = false; setStatus('ready');
 
         if (res.image) {
           addImageBubble(res.image, cleaned);
@@ -1426,7 +1553,7 @@ document.addEventListener('DOMContentLoaded', () => {
           addBubble(res.error || 'Image generation failed — please try again.', 'bot');
         }
       } catch {
-        removeTyping(); isThinking = false; setStatus('ready');
+        removeImageGenLoader(); isThinking = false; setStatus('ready');
         addBubble('Something went wrong generating that image. Please try again.', 'bot');
       }
       return;
@@ -1480,6 +1607,23 @@ document.addEventListener('DOMContentLoaded', () => {
     utter.onend   = () => { speakingAnim.style.display = 'none'; if (voiceOnly) wakeMicButton.style.display = 'flex'; else msg.focus(); onEnd?.(); };
     utter.onerror = () => { speakingAnim.style.display = 'none'; onEnd?.(); };
     speechSynthesis.speak(utter);
+  }
+
+  // Per-message "read aloud" button — toggles between speak/stop, keeping only
+  // one button active at a time (matches the single global speechSynthesis queue).
+  function toggleSpeakBtn(btn, text) {
+    if (activeSpeakBtn === btn) {
+      speechSynthesis.cancel();
+      btn.innerHTML = ICONS.unmute; btn.title = 'Read aloud';
+      activeSpeakBtn = null;
+      return;
+    }
+    if (activeSpeakBtn) { activeSpeakBtn.innerHTML = ICONS.unmute; activeSpeakBtn.title = 'Read aloud'; }
+    activeSpeakBtn = btn;
+    btn.innerHTML = ICONS.mute; btn.title = 'Stop reading';
+    speak(text, () => {
+      if (activeSpeakBtn === btn) { btn.innerHTML = ICONS.unmute; btn.title = 'Read aloud'; activeSpeakBtn = null; }
+    });
   }
 
   // ══════════════════════════════
