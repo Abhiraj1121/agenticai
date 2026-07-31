@@ -1175,6 +1175,7 @@ def run_tool(tool_name):
 def health():
     return jsonify({"status": "ok", "bot": BOT_NAME,
                     "models": [m["id"] for m in MODELS],
+                    "ai_configured": bool(AI_API_KEY),
                     "time": datetime.now().isoformat()})
 
 
