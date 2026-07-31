@@ -356,32 +356,9 @@ html,body { height:100%; font-family:var(--font-body); font-size:15px; color:var
 .think-bar:nth-child(4){animation-delay:0.3s}
 .think-bar:nth-child(5){animation-delay:0.4s}
 @keyframes thinkWave{0%,100%{transform:scaleY(0.35);opacity:0.55}50%{transform:scaleY(1);opacity:1}}
-.think-label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3);position:relative;overflow:hidden;background:linear-gradient(90deg,var(--text3) 40%,var(--gold-bright) 50%,var(--text3) 60%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:thinkShimmer 1.8s linear infinite;transition:opacity 0.2s ease,transform 0.2s ease}
-.think-label.think-label-swap{opacity:0;transform:translateY(-3px)}
+.think-label{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3);position:relative;overflow:hidden;background:linear-gradient(90deg,var(--text3) 40%,var(--gold-bright) 50%,var(--text3) 60%);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:thinkShimmer 1.8s linear infinite}
 @keyframes thinkShimmer{0%{background-position:120% 0}100%{background-position:-20% 0}}
 body.reduce-motion .think-label{animation:none;-webkit-text-fill-color:var(--text3)}
-
-/* Image generation loader — dedicated shimmer-frame animation, distinct from the generic thinking bubble */
-.imggen-loader{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--gold-dim);border-radius:var(--radius-md) var(--radius-md) var(--radius-md) 4px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px}
-.imggen-frame{position:relative;width:120px;height:80px;border-radius:10px;overflow:hidden;background:linear-gradient(135deg,var(--ink3),var(--ink4));border:1px solid var(--border)}
-.imggen-shimmer{position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,var(--gold-glow) 50%,transparent 70%);background-size:220% 100%;animation:imggenSweep 1.6s ease-in-out infinite}
-@keyframes imggenSweep{0%{background-position:150% 0}100%{background-position:-50% 0}}
-.imggen-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gold);opacity:0.7;animation:imggenPulse 1.8s ease-in-out infinite}
-.imggen-icon svg{width:26px;height:26px}
-@keyframes imggenPulse{0%,100%{opacity:0.45;transform:scale(0.94)}50%{opacity:0.9;transform:scale(1.04)}}
-body.reduce-motion .imggen-shimmer,body.reduce-motion .imggen-icon{animation:none}
-
-/* API key banner — slides/fades in below the header, dismissible */
-.apikey-banner{display:flex;align-items:center;gap:10px;padding:10px 18px;margin:0;background:linear-gradient(90deg,var(--gold-glow),transparent);border-bottom:1px solid var(--border);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:13px;opacity:0;max-height:0;overflow:hidden;transition:opacity 0.32s ease,max-height 0.32s ease,padding 0.32s ease}
-.apikey-banner.show{opacity:1;max-height:60px;padding:10px 18px}
-.apikey-banner-icon{display:flex;align-items:center;color:var(--gold);flex-shrink:0}
-.apikey-banner-icon svg{width:16px;height:16px}
-.apikey-banner-text{flex:1;min-width:0}
-.apikey-banner-btn{background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:var(--ink);border:none;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;padding:6px 14px;border-radius:99px;cursor:pointer;white-space:nowrap;transition:transform 0.2s ease}
-.apikey-banner-btn:hover{transform:translateY(-1px)}
-.apikey-banner-close{background:none;border:none;color:var(--text3);cursor:pointer;display:flex;align-items:center;padding:4px;flex-shrink:0}
-.apikey-banner-close svg{width:14px;height:14px}
-.apikey-banner-close:hover{color:var(--text)}
 .mic-status{font-family:var(--font-mono);font-size:11px;color:var(--danger);letter-spacing:0.08em;min-width:0;white-space:nowrap}
 
 /* Toast icon */
@@ -449,4 +426,61 @@ body.reduce-motion, body.reduce-motion * { animation-duration:0.001s !important;
 @media (max-width:480px) {
   .chat{padding:14px 10px} .composer-wrap{padding:10px 12px 12px}
   .bubble-row.user,.bubble-row.bot{max-width:94%} .brand-text h1{font-size:16px}
+}
+
+/* ══════════════════════════════
+   SPEAK BUTTON (per-message TTS)
+   ══════════════════════════════ */
+.bact-btn.speaking { color:var(--gold-bright); border-color:var(--border-md); background:rgba(201,168,76,0.14); animation:speakBtnPulse 1.2s ease-in-out infinite; }
+@keyframes speakBtnPulse { 0%,100%{box-shadow:0 0 0 0 rgba(201,168,76,0.35)} 50%{box-shadow:0 0 0 4px rgba(201,168,76,0)} }
+
+/* ══════════════════════════════
+   THINKING LABEL — smooth cross-fade between rotating phrases
+   ══════════════════════════════ */
+.think-label { transition:opacity 0.22s ease, transform 0.22s ease; opacity:1; transform:translateY(0); }
+.think-label.think-fade-out { opacity:0; transform:translateY(3px); }
+body.reduce-motion .think-label.think-fade-out { transition:none; }
+
+/* ══════════════════════════════
+   IMAGE GENERATION ANIMATION
+   ══════════════════════════════ */
+.bubble.img-generating { background:var(--surface2); border:1px solid var(--border); border-left:3px solid var(--gold-dim); border-radius:var(--radius-md) var(--radius-md) var(--radius-md) 4px; display:flex; align-items:center; gap:12px; padding:12px 16px; }
+.imggen-frame { position:relative; width:34px; height:34px; border-radius:9px; overflow:hidden; flex-shrink:0; background:linear-gradient(135deg, rgba(201,168,76,0.18), rgba(91,141,239,0.18), rgba(201,168,76,0.18)); background-size:300% 300%; animation:imggenGradient 2.6s ease infinite; border:1px solid var(--border-md); display:flex; align-items:center; justify-content:center; }
+@keyframes imggenGradient { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+.imggen-shimmer { position:absolute; inset:0; background:linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%); background-size:220% 100%; animation:imggenShimmer 1.6s linear infinite; }
+@keyframes imggenShimmer { 0%{background-position:140% 0} 100%{background-position:-60% 0} }
+.imggen-icon { position:relative; width:18px; height:18px; color:var(--gold-bright); animation:imggenIconPop 1.8s ease-in-out infinite; filter:drop-shadow(0 0 5px var(--gold-glow)); }
+@keyframes imggenIconPop { 0%,100%{transform:scale(0.9) rotate(-6deg); opacity:0.85} 50%{transform:scale(1.08) rotate(4deg); opacity:1} }
+body.reduce-motion .imggen-frame,
+body.reduce-motion .imggen-shimmer,
+body.reduce-motion .imggen-icon { animation:none; }
+
+/* ══════════════════════════════
+   API KEY MISSING BANNER
+   ══════════════════════════════ */
+.apikey-banner {
+  display:flex; align-items:center; gap:12px;
+  max-height:0; opacity:0; padding:0 18px; margin:0 18px;
+  overflow:hidden; border-radius:var(--radius-md);
+  background:linear-gradient(135deg, rgba(224,85,85,0.10), rgba(201,168,76,0.10));
+  border:1px solid rgba(224,85,85,0.25);
+  transform:translateY(-8px);
+  transition:max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.4s ease, transform 0.4s ease, padding 0.45s cubic-bezier(0.4,0,0.2,1), margin 0.45s ease;
+}
+.apikey-banner.show { max-height:120px; opacity:1; padding:12px 18px; margin:14px 18px 0; transform:translateY(0); box-shadow:0 4px 18px rgba(224,85,85,0.10); }
+.apikey-banner-icon { flex-shrink:0; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--danger); background:rgba(224,85,85,0.12); border:1px solid rgba(224,85,85,0.3); animation:apikeyIconGlow 2.2s ease-in-out infinite; }
+@keyframes apikeyIconGlow { 0%,100%{box-shadow:0 0 0 0 rgba(224,85,85,0.25)} 50%{box-shadow:0 0 0 6px rgba(224,85,85,0)} }
+.apikey-banner-text { flex:1; display:flex; flex-direction:column; gap:2px; min-width:0; }
+.apikey-banner-text strong { font-family:var(--font-body); font-size:13.5px; color:var(--text); font-weight:700; }
+.apikey-banner-text span { font-size:12px; color:var(--text2); }
+.apikey-banner-btn { flex-shrink:0; border:1px solid var(--border-md); background:var(--gold); color:var(--ink); font-family:var(--font-body); font-weight:700; font-size:12.5px; padding:8px 16px; border-radius:99px; cursor:pointer; transition:background var(--transition), transform 0.15s ease; white-space:nowrap; }
+.apikey-banner-btn:hover { background:var(--gold-bright); transform:translateY(-1px); }
+.apikey-banner-close { flex-shrink:0; width:24px; height:24px; border-radius:6px; border:none; background:transparent; color:var(--text3); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background var(--transition), color var(--transition); }
+.apikey-banner-close:hover { background:rgba(255,255,255,0.06); color:var(--text); }
+body.reduce-motion .apikey-banner-icon { animation:none; }
+@media (max-width:480px) {
+  .apikey-banner { margin:0 10px; padding:0 12px; }
+  .apikey-banner.show { padding:10px 12px; margin:10px 10px 0; }
+  .apikey-banner-text span { display:none; }
+  .apikey-banner-btn { padding:7px 12px; font-size:12px; }
 }
