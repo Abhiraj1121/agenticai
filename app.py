@@ -17,17 +17,37 @@ log = logging.getLogger("eka")
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.getenv("SECRET_KEY") or secrets.token_hex(32)
+
+# ── Cross-origin session cookies ──
+# Your API (Render) and your frontend (GitHub Pages) are on different domains,
+# so the session cookie must be marked SameSite=None + Secure — browsers refuse
+# to send it cross-site otherwise. Secure=True requires HTTPS, which Render
+# already provides; for local http://localhost testing, sessions won't
+# persist cross-origin (that's expected — same-origin dev testing still works).
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production",
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
 )
-CORS(app, supports_credentials=True)
+
+# ── CORS ──
+# supports_credentials=True + origins="*" is rejected by browsers (a wildcard
+# origin can't carry credentials/cookies) — must list allowed origins explicitly.
+# FRONTEND_ORIGINS accepts a comma-separated list via env var for flexibility.
+FRONTEND_ORIGINS = [o.strip() for o in os.getenv(
+    "FRONTEND_ORIGINS",
+    "https://abhiraj1121.github.io,http://localhost:5000,http://127.0.0.1:5500"
+).split(",") if o.strip()]
+CORS(app, supports_credentials=True, origins=FRONTEND_ORIGINS)
 
 AI_API_URL = os.getenv("AI_API_URL", "https://openrouter.ai/api/v1/chat/completions")
 AI_API_KEY = os.getenv("AI_API_KEY", "")
 BOT_NAME   = os.getenv("BOT_NAME", "EKA")
 DEV_NAME   = os.getenv("DEV_NAME", "Abhi Raj Singh")
+
+# Where the standalone frontend (GitHub Pages) lives — login/signup redirect here
+# after a successful auth, instead of Flask's own bundled index.html.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://abhiraj1121.github.io/agenticai/")
 
 # ── Model waterfall (all free tier) ──
 # "vision": True means the model accepts multimodal (image_url) content —
@@ -956,7 +976,7 @@ def api_signup():
     session["username"] = user["username"]
     session["display_name"] = user["display_name"]
     log.info(f"→ signup: {user['username']}")
-    return jsonify({"redirect": url_for("index"), "user": user})
+    return jsonify({"redirect": FRONTEND_URL, "user": user})
 
 
 @app.route("/api/login", methods=["POST"])
@@ -971,7 +991,7 @@ def api_login():
     session["username"] = user["username"]
     session["display_name"] = user["display_name"]
     log.info(f"→ login: {user['username']}")
-    return jsonify({"redirect": url_for("index"), "user": user})
+    return jsonify({"redirect": FRONTEND_URL, "user": user})
 
 
 @app.route("/api/chat", methods=["POST"])
