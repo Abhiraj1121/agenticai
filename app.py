@@ -3,7 +3,6 @@ EKA AI — app.py  v3
 Real-time web: DuckDuckGo (free, no key) + Wikipedia
 Models: Llama 4 Maverick → Scout → Qwen3 → Mistral (all free via OpenRouter)
 """
-
 import os, re, time, json, logging, requests, base64, urllib.parse, sqlite3, hashlib, secrets
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
