@@ -43,7 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     diagram:   { icon: ICONS.bot,    label: 'Diagram' },
     document:  { icon: ICONS.folder, label: 'Document' },
   };
-
   // ══════════════════════════════
   // LAUNCH SCREEN
   // ══════════════════════════════
