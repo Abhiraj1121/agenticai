@@ -1,6 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // ══════════════════════════════
+  // API BASE — points at the deployed Flask backend on Render.
+  // Needed because this frontend is hosted separately (e.g. GitHub Pages)
+  // from app.py. If you ever serve them from the same origin again,
+  // you can set this back to '' and all calls fall back to relative paths.
+  // ══════════════════════════════
+  const API_BASE = 'https://agenticai-2p4c.onrender.com';
+
+  // ══════════════════════════════
   // ICON LIBRARY (inline SVG — no emoji anywhere in the UI)
   // ══════════════════════════════
   const ICONS = {
@@ -1006,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runAvatarTool(seed, style = 'bottts') {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
-      const res = await fetch('/api/tool/generate_avatar', {
+      const res = await fetch(`${API_BASE}/api/tool/generate_avatar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ seed, style })
       }).then(r => r.json());
@@ -1134,7 +1142,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runDocumentTool(topic, docType = 'report', format = 'md') {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
-      const res = await fetch('/api/tool/generate_document', {
+      const res = await fetch(`${API_BASE}/api/tool/generate_document`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ topic, doc_type: docType, format })
       }).then(r => r.json());
@@ -1181,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runDiagramTool(promptText) {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
-      const res = await fetch('/api/tool/generate_diagram', {
+      const res = await fetch(`${API_BASE}/api/tool/generate_diagram`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ prompt: promptText })
       }).then(r => r.json());
@@ -1206,7 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function runCodeTool(promptText, language = 'python') {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
-      const res = await fetch('/api/tool/generate_code', {
+      const res = await fetch(`${API_BASE}/api/tool/generate_code`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ prompt: promptText, language })
       }).then(r => r.json());
@@ -1286,7 +1294,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const body = { message: messageText || 'Please analyse this image.', history: chatHistory, wiki: webSearchEnabled };
       if (imageToSend) body.image = imageToSend;
 
-      const res = await fetch('/api/chat', {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body)
       }).then(r => r.json());
 
@@ -1399,7 +1407,7 @@ document.addEventListener('DOMContentLoaded', () => {
       addTyping(); isThinking = true; setStatus('thinking');
 
       try {
-        const res = await fetch('/api/image', {
+        const res = await fetch(`${API_BASE}/api/image`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: cleaned })
         }).then(r => r.json());
