@@ -8,7 +8,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from flask_cors import CORS
-from ddgs import DDGS
+#from ddgs import DDGS
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
@@ -789,7 +789,7 @@ def clean(text: str) -> str:
 def ai_query(user_input: str, history: list = None, system: str = None, image_data_url: str = None, api_key: str = None) -> str:
     key = (api_key or AI_API_KEY or "").strip()
     if not key:
-        return "AI backend not configured. Please set AI_API_KEY in your .env file, or add your own OpenRouter key in Settings."
+        return "I don't have an AI key configured yet, so I can't reply. Please add your own free OpenRouter key: Menu > Settings > Your API Key (BYOK)."
 
     messages = [{"role": "system", "content": system or SYS_BASE}]
 
@@ -859,7 +859,7 @@ def ai_query_single_model(model_id: str, system: str, user_input: str, api_key: 
     the first model in MODELS if the requested one errors. Returns (text, error)."""
     key = (api_key or AI_API_KEY or "").strip()
     if not key:
-        return None, "No AI key configured. Add your own OpenRouter key in Settings, or contact the admin."
+        return None, "No AI key configured. Add your own OpenRouter key: Menu > Settings > Your API Key (BYOK), or contact the admin."
 
     headers = {
         "Authorization": f"Bearer {key}",
@@ -1157,7 +1157,7 @@ def run_tool(tool_name):
     if tool.get("needs_key") and not (user_key or AI_API_KEY):
         return jsonify({
             "ok": False, "tool": tool_name,
-            "error": "This tool needs an AI key. Add your own OpenRouter key in Settings, or contact the admin."
+            "error": "This tool needs an AI key. Add your own OpenRouter key: Menu > Settings > Your API Key (BYOK), or contact the admin."
         }), 400
 
     log.info(f"→ tool:{tool_name} args={args}{' [BYOK]' if user_key else ''}")
@@ -1175,7 +1175,7 @@ def run_tool(tool_name):
 def health():
     return jsonify({"status": "ok", "bot": BOT_NAME,
                     "models": [m["id"] for m in MODELS],
-                    "ai_configured": bool(AI_API_KEY),
+                    "has_server_key": bool((AI_API_KEY or "").strip()),
                     "time": datetime.now().isoformat()})
 
 
