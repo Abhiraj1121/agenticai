@@ -1005,6 +1005,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         break;
       }
+      case 'generate_image': {
+        addImageBubble(data.image, data.prompt);
+        chatHistory.push({ role: 'assistant', content: `[Generated an image for: ${data.prompt}]` });
+        break;
+      }
       default:
         addBubble(`Received an unrecognized tool result (${toolName}).`, 'bot');
     }
@@ -1015,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
       const res = await fetch(`${API_BASE}/api/tool/generate_avatar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ seed, style })
       }).then(r => r.json());
 
@@ -1143,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
       const res = await fetch(`${API_BASE}/api/tool/generate_document`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'include',
         body: JSON.stringify({ topic, doc_type: docType, format })
       }).then(r => r.json());
 
@@ -1190,7 +1195,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
       const res = await fetch(`${API_BASE}/api/tool/generate_diagram`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'include',
         body: JSON.stringify({ prompt: promptText })
       }).then(r => r.json());
 
@@ -1215,7 +1220,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addTyping(); isThinking = true; setStatus('thinking');
     try {
       const res = await fetch(`${API_BASE}/api/tool/generate_code`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, credentials: 'include',
         body: JSON.stringify({ prompt: promptText, language })
       }).then(r => r.json());
 
@@ -1295,7 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (imageToSend) body.image = imageToSend;
 
       const res = await fetch(`${API_BASE}/api/chat`, {
-        method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body: JSON.stringify(body)
+        method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, credentials:'include', body: JSON.stringify(body)
       }).then(r => r.json());
 
       removeTyping(); isThinking = false;
@@ -1408,7 +1413,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         const res = await fetch(`${API_BASE}/api/image`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
           body: JSON.stringify({ prompt: cleaned })
         }).then(r => r.json());
 
