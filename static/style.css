@@ -1,5 +1,4 @@
 /* EKA AI — style.css v4 */
-
 :root {
   --gold:#C9A84C; --gold-bright:#F0D080; --gold-dim:#8A6E30;
   --gold-glow:rgba(201,168,76,0.25); --gold-edge:rgba(201,168,76,0.15);
@@ -52,7 +51,7 @@ body.material .bubble:hover { transform: translateY(-2px); }
 body.material .app-shell, body.material .modal, body.material #chat { animation: materialFadeScaleIn 0.5s cubic-bezier(0.22,1,0.36,1); }
 
 /* ══════════════════════════════
-   LAUNCH SCREEN
+   LAUNCH SCREEN ANIMATION
    ══════════════════════════════ */
 .launch-screen {
   position:fixed; inset:0; z-index:3000;
