@@ -1,12 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
 
   // ══════════════════════════════
-  // API BASE — points at the deployed Flask backend on Render.
-  // Needed because this frontend is hosted separately (e.g. GitHub Pages)
-  // from app.py. If you ever serve them from the same origin again,
-  // you can set this back to '' and all calls fall back to relative paths.
+  // API BASE — points at the deployed Flask backend on Render when the
+  // frontend is hosted elsewhere (e.g. GitHub Pages). On localhost/127.0.0.1
+  // it automatically falls back to relative paths, so local testing always
+  // hits your local Flask server instead of the possibly-broken Render one.
   // ══════════════════════════════
-  const API_BASE = 'https://agenticai-2p4c.onrender.com';
+  const IS_LOCAL = ['localhost', '127.0.0.1', ''].includes(location.hostname);
+  const API_BASE = IS_LOCAL ? '' : 'https://agenticai-2p4c.onrender.com';
 
   // ══════════════════════════════
   // ICON LIBRARY (inline SVG — no emoji anywhere in the UI)
@@ -1527,7 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ══════════════════════════════
-  // LANGUAGE MAP — app language code → BCP-47 locale for TTS
+  // LANGUAGE MAP — app language code → BCP-47 locale for TTS/STT
   // ══════════════════════════════
   const LANG_LOCALE = {
     en: 'en-IN', hi: 'hi-IN', bn: 'bn-IN', ta: 'ta-IN', te: 'te-IN',
