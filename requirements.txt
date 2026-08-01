@@ -7,3 +7,4 @@ ddgs
 python-docx
 reportlab
 markdown
+gunicorn
