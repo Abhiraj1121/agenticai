@@ -17,6 +17,28 @@ log = logging.getLogger("eka")
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.secret_key = os.getenv("SECRET_KEY") or secrets.token_hex(32)
 
+# ══════════════════════════════════════
+# Bot / abuse protection for auth endpoints
+# In-memory sliding-window rate limit, keyed by client IP.
+# Good enough for a single-process deploy; swap for Redis if you scale out.
+# ══════════════════════════════════════
+from collections import defaultdict
+_auth_hits = defaultdict(list)  # ip -> [timestamps]
+AUTH_WINDOW_SEC = 60
+AUTH_MAX_HITS = 5  # 5 attempts/min per IP on login or signup
+
+def client_ip() -> str:
+    fwd = request.headers.get("X-Forwarded-For", "")
+    return fwd.split(",")[0].strip() if fwd else (request.remote_addr or "unknown")
+
+def rate_limited(bucket: str) -> bool:
+    key = f"{bucket}:{client_ip()}"
+    now = time.time()
+    hits = [t for t in _auth_hits[key] if now - t < AUTH_WINDOW_SEC]
+    hits.append(now)
+    _auth_hits[key] = hits
+    return len(hits) > AUTH_MAX_HITS
+
 # ── Cross-origin session cookies ──
 # Your API (Render) and your frontend (GitHub Pages) are on different domains,
 # so the session cookie must be marked SameSite=None + Secure — browsers refuse
@@ -46,7 +68,7 @@ DEV_NAME   = os.getenv("DEV_NAME", "Abhi Raj Singh")
 
 # Where the standalone frontend (GitHub Pages) lives — login/signup redirect here
 # after a successful auth, instead of Flask's own bundled index.html.
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://abhiraj1121.github.io/agenticai/")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "/")
 
 # ── Model waterfall (all free tier) ──
 # "vision": True means the model accepts multimodal (image_url) content —
@@ -1007,7 +1029,9 @@ def get_user_api_key() -> str | None:
 # ══════════════════════════════════════
 @app.route("/")
 def index():
-    return render_template("index.html", bot_name=BOT_NAME)
+    if not session.get("user_id"):
+        return redirect(url_for("login_page"))
+    return render_template("index.html", bot_name=BOT_NAME, display_name=session.get("display_name"))
 
 
 @app.route("/login")
@@ -1033,6 +1057,15 @@ def logout():
 @app.route("/api/signup", methods=["POST"])
 def api_signup():
     payload = request.get_json(silent=True) or {}
+
+    # Honeypot — hidden field only a bot would fill in
+    if (payload.get("website") or "").strip():
+        log.info(f"→ signup blocked (honeypot): {client_ip()}")
+        return jsonify({"error": "Something went wrong. Please try again."}), 400
+
+    if rate_limited("signup"):
+        return jsonify({"error": "Too many attempts. Please wait a minute and try again."}), 429
+
     user, err = create_user(
         username=payload.get("username", ""),
         display_name=payload.get("display_name", ""),
@@ -1052,6 +1085,10 @@ def api_signup():
 @app.route("/api/login", methods=["POST"])
 def api_login():
     payload = request.get_json(silent=True) or {}
+
+    if rate_limited("login"):
+        return jsonify({"error": "Too many attempts. Please wait a minute and try again."}), 429
+
     user, err = verify_user(payload.get("username", ""), payload.get("password", ""))
     if err:
         return jsonify({"error": err}), 401
