@@ -4,37 +4,100 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 {% endblock %}
 {% block content %}
+<div class="auth-orbs"><div class="auth-orb o1"></div><div class="auth-orb o2"></div><div class="auth-orb o3"></div></div>
 <div class="auth-wrap">
-  <form class="auth-card glass reveal" id="signupForm" autocomplete="off">
-    <div class="auth-brand">
-      <img src="{{ url_for('static', filename='img/Swastik.jpg') }}" alt="{{ bot_name }}">
-      <h1>{{ bot_name }}</h1>
-      <p>Create an account to save your chats and personalize things.</p>
-    </div>
 
-    <div class="auth-error" id="signupError"></div>
+  <div class="auth-show">
+    <div class="auth-show-brand"><span class="dot"></span><span>{{ bot_name }} · online</span></div>
+    <h2>Your own <em>AI workspace</em><br>starts here.</h2>
+    <p class="sub">Create a free account to save chats, use tools, and personalize {{ bot_name }} to how you work.</p>
 
-    <div class="field">
-      <label for="display_name">Display name</label>
-      <input type="text" id="display_name" name="display_name" placeholder="What should I call you?" required>
+    <div class="demo-chat">
+      <div class="bubble user">Create my account</div>
+      <div class="bubble bot"><span class="typing-dots"><span></span><span></span><span></span></span></div>
     </div>
-    <div class="field">
-      <label for="username">Username</label>
-      <input type="text" id="username" name="username" placeholder="choose a username" required autocomplete="username">
-    </div>
-    <div class="field">
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" placeholder="at least 4 characters" required autocomplete="new-password">
-    </div>
+    <div class="typed-line" id="typedLine"><span class="cursor"></span></div>
 
-    <button type="submit" class="auth-btn" id="signupBtn">Create account</button>
+    <div class="auth-stats">
+      <div><b>Free</b><span>No credit card</span></div>
+      <div><b>30s</b><span>To get started</span></div>
+      <div><b>100%</b><span>Your data, your control</span></div>
+    </div>
+  </div>
 
-    <p class="auth-switch">Already have an account? <a href="{{ url_for('login_page') }}">Log in</a></p>
-  </form>
+  <div class="auth-formside">
+    <form class="auth-card reveal" id="signupForm" autocomplete="off">
+      <div class="auth-brand">
+        <h1>{{ bot_name }}</h1>
+        <p>Create an account to save your chats and personalize things.</p>
+      </div>
+
+      <div class="auth-error" id="signupError"></div>
+
+      <!-- Honeypot: hidden from real users, bots tend to fill every field -->
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" aria-hidden="true">
+
+      <div class="field">
+        <input type="text" id="display_name" name="display_name" placeholder=" " required>
+        <label for="display_name">Display name</label>
+      </div>
+      <div class="field">
+        <input type="text" id="username" name="username" placeholder=" " required autocomplete="username">
+        <label for="username">Username</label>
+      </div>
+      <div class="field">
+        <input type="password" id="password" name="password" placeholder=" " required autocomplete="new-password">
+        <label for="password">Password</label>
+      </div>
+      <div class="pw-meter" id="pwMeter"><i></i><i></i><i></i><i></i></div>
+      <p class="pw-hint" id="pwHint">At least 4 characters</p>
+
+      <button type="submit" class="auth-btn" id="signupBtn">Create account</button>
+
+      <p class="auth-switch">Already have an account? <a href="{{ url_for('login_page') }}">Log in</a></p>
+    </form>
+  </div>
 </div>
 {% endblock %}
 {% block extra_js %}
 <script>
+(function typeLoop() {
+  var lines = ["Welcome aboard!", "Let's set things up…", "Almost there…", "One account, endless tools."];
+  var el = document.getElementById("typedLine");
+  var cursor = el.querySelector(".cursor");
+  var li = 0, ci = 0, deleting = false;
+  function tick() {
+    var line = lines[li];
+    if (!deleting) {
+      ci++;
+      if (ci > line.length) { deleting = true; setTimeout(tick, 1200); return; }
+    } else {
+      ci--;
+      if (ci < 0) { deleting = false; li = (li + 1) % lines.length; ci = 0; }
+    }
+    el.textContent = line.slice(0, ci);
+    el.appendChild(cursor);
+    setTimeout(tick, deleting ? 35 : 65);
+  }
+  tick();
+})();
+
+var pwInput = document.getElementById("password");
+var pwMeter = document.getElementById("pwMeter");
+var pwHint = document.getElementById("pwHint");
+pwInput.addEventListener("input", function () {
+  var v = pwInput.value, score = 0;
+  if (v.length >= 4) score++;
+  if (v.length >= 8) score++;
+  if (/[0-9]/.test(v) && /[a-zA-Z]/.test(v)) score++;
+  if (/[^a-zA-Z0-9]/.test(v) && v.length >= 8) score++;
+  pwMeter.className = "pw-meter" + (v ? " s" + Math.max(score, v.length >= 4 ? 1 : 0) : "");
+  pwHint.textContent = !v ? "At least 4 characters" :
+    score <= 1 ? "Weak — add more characters" :
+    score === 2 ? "Okay — try mixing letters & numbers" :
+    score === 3 ? "Good password" : "Strong password";
+});
+
 document.getElementById("signupForm").addEventListener("submit", async function (e) {
   e.preventDefault();
   var btn = document.getElementById("signupBtn");
@@ -50,7 +113,8 @@ document.getElementById("signupForm").addEventListener("submit", async function 
       body: JSON.stringify({
         display_name: document.getElementById("display_name").value,
         username: document.getElementById("username").value,
-        password: document.getElementById("password").value
+        password: document.getElementById("password").value,
+        website: document.getElementById("website").value
       })
     });
     var data = await res.json();
