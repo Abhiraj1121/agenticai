@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Log in · {{ bot_name }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <form class="auth-card glass reveal" id="loginForm" autocomplete="off">
+    <div class="auth-brand">
+      <img src="{{ url_for('static', filename='img/Swastik.jpg') }}" alt="{{ bot_name }}">
+      <h1>{{ bot_name }}</h1>
+      <p>Welcome back — sign in to keep the conversation going.</p>
+    </div>
+
+    <div class="auth-error" id="loginError"></div>
+
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="your username" required autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+    </div>
+
+    <button type="submit" class="auth-btn" id="loginBtn">Log in</button>
+
+    <p class="auth-switch">New here? <a href="{{ url_for('signup_page') }}">Create an account</a></p>
+  </form>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById("loginForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  var btn = document.getElementById("loginBtn");
+  var errBox = document.getElementById("loginError");
+  errBox.classList.remove("show");
+  btn.disabled = true;
+  btn.textContent = "Signing in…";
+
+  try {
+    var res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: document.getElementById("username").value,
+        password: document.getElementById("password").value
+      })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Login failed");
+    window.location.href = data.redirect || "/chat";
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.add("show");
+    btn.disabled = false;
+    btn.textContent = "Log in";
+  }
+});
+</script>
+{% endblock %}

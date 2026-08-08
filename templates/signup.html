@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Sign up · {{ bot_name }}{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <form class="auth-card glass reveal" id="signupForm" autocomplete="off">
+    <div class="auth-brand">
+      <img src="{{ url_for('static', filename='img/Swastik.jpg') }}" alt="{{ bot_name }}">
+      <h1>{{ bot_name }}</h1>
+      <p>Create an account to save your chats and personalize things.</p>
+    </div>
+
+    <div class="auth-error" id="signupError"></div>
+
+    <div class="field">
+      <label for="display_name">Display name</label>
+      <input type="text" id="display_name" name="display_name" placeholder="What should I call you?" required>
+    </div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="choose a username" required autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="at least 4 characters" required autocomplete="new-password">
+    </div>
+
+    <button type="submit" class="auth-btn" id="signupBtn">Create account</button>
+
+    <p class="auth-switch">Already have an account? <a href="{{ url_for('login_page') }}">Log in</a></p>
+  </form>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.getElementById("signupForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  var btn = document.getElementById("signupBtn");
+  var errBox = document.getElementById("signupError");
+  errBox.classList.remove("show");
+  btn.disabled = true;
+  btn.textContent = "Creating…";
+
+  try {
+    var res = await fetch("/api/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        display_name: document.getElementById("display_name").value,
+        username: document.getElementById("username").value,
+        password: document.getElementById("password").value
+      })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Sign up failed");
+    window.location.href = data.redirect || "/chat";
+  } catch (err) {
+    errBox.textContent = err.message;
+    errBox.classList.add("show");
+    btn.disabled = false;
+    btn.textContent = "Create account";
+  }
+});
+</script>
+{% endblock %}
