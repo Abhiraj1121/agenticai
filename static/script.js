@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // hits your local Flask server instead of the possibly-broken Render one.
   // ══════════════════════════════
   const IS_LOCAL = ['localhost', '127.0.0.1', ''].includes(location.hostname);
-  const API_BASE = IS_LOCAL ? '' : '';
+  const API_BASE = IS_LOCAL ? '' : 'https://agenticai-aowj.onrender.com';
 
   // ══════════════════════════════
   // ICON LIBRARY (inline SVG — no emoji anywhere in the UI)
