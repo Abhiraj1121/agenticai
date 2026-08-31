@@ -5,10 +5,10 @@ Models: Llama 4 Maverick → Scout → Qwen3 → Mistral (all free via OpenRoute
 """
 import os, re, time, json, logging, requests, base64, urllib.parse, sqlite3, hashlib, secrets
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from dotenv import load_dotenv
 from flask_cors import CORS
-from ddgs import DDGS
+#from ddgs import DDGS
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
@@ -1218,6 +1218,9 @@ def api_update_avatar():
 @app.route("/api/signup", methods=["POST"])
 def api_signup():
     payload = request.get_json(silent=True) or {}
+    if (payload.get("website") or "").strip():
+        # Honeypot field from the signup form — real users never fill it.
+        return jsonify({"error": "Sign up failed"}), 400
     user, err = create_user(
         username=payload.get("username", ""),
         display_name=payload.get("display_name", ""),
@@ -1373,6 +1376,13 @@ def health():
                     "models": [m["id"] for m in MODELS],
                     "has_server_key": bool((AI_API_KEY or "").strip()),
                     "time": datetime.now().isoformat()})
+
+
+# Serve the static 404.html (shared with GitHub Pages) for unmatched routes
+# on the Flask side too, so both deployment targets show the same page.
+@app.errorhandler(404)
+def not_found(e):
+    return send_from_directory(app.root_path, "404.html"), 404
 
 
 if __name__ == "__main__":
