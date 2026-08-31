@@ -304,7 +304,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   apiKeyBannerBtn?.addEventListener('click', () => {
     openSettingsBtn?.click();
-    setTimeout(() => settingApiKey?.focus(), 320);
+    // Jump straight to the dedicated BYOK panel (Settings → API Key) instead
+    // of landing on the default Profile tab.
+    setTimeout(() => {
+      document.querySelector('.settings-nav-item[data-section="sec-key"]')?.click();
+      settingApiKey?.focus();
+    }, 320);
   });
   apiKeyBannerClose?.addEventListener('click', hideApiKeyBanner);
 
