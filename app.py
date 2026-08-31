@@ -80,26 +80,42 @@ WEB RESULTS:
 
 # ══════════════════════════════════════
 # WEB SEARCH — DuckDuckGo (free, no key)
-# Uses the `duckduckgo_search` library for real web results (titles + snippets + links).
+# Uses the `ddgs` library for real web results (titles + snippets + links).
 # NOTE: this was previously hitting api.duckduckgo.com (the "Instant Answer" API), which
 # only returns something for dictionary/disambiguation-style queries — it silently
 # returned nothing for news, scores, weather, etc. This calls actual DDG search instead.
+#
+# DDG's HTML/lite endpoints rate-limit aggressively from shared/datacenter IPs (like
+# Render's), so a single failed attempt does NOT mean DDG is down — it's often a
+# transient 202/403 from their backend. We retry across DDGS' own backends with
+# backoff before giving up, and try multiple backends so one blocked backend doesn't
+# take the whole search down.
 # ══════════════════════════════════════
-def ddg_search(query: str) -> tuple[str | None, str]:
+def ddg_search(query: str, attempts: int = 3) -> tuple[str | None, str]:
     """Real DuckDuckGo web search — returns top result snippets, or None if it fails."""
-    try:
-        results = DDGS().text(query, max_results=5, safesearch="moderate")
-        snippets = []
-        for r in results or []:
-            title = (r.get("title") or "").strip()
-            body  = (r.get("body") or "").strip()
-            href  = (r.get("href") or "").strip()
-            if body:
-                snippets.append(f"{title}\n{body}\nSource: {href}")
-        if snippets:
-            return "\n\n".join(snippets)[:2400], "DuckDuckGo"
-    except Exception as e:
-        log.warning(f"DDG search error: {e}")
+    backends = ["auto", "html", "lite"]
+    last_err = None
+    for i in range(attempts):
+        backend = backends[i % len(backends)]
+        try:
+            results = DDGS(timeout=8).text(
+                query, max_results=5, safesearch="moderate", backend=backend
+            )
+            snippets = []
+            for r in results or []:
+                title = (r.get("title") or "").strip()
+                body  = (r.get("body") or "").strip()
+                href  = (r.get("href") or "").strip()
+                if body:
+                    snippets.append(f"{title}\n{body}\nSource: {href}")
+            if snippets:
+                return "\n\n".join(snippets)[:2400], "DuckDuckGo"
+            last_err = "no results"
+        except Exception as e:
+            last_err = e
+            log.warning(f"DDG search error (backend={backend}, attempt {i+1}/{attempts}): {e}")
+            time.sleep(0.6 * (i + 1))  # small backoff before retrying a different backend
+    log.warning(f"DDG search exhausted all attempts — last error: {last_err}")
     return None, ""
 
 
@@ -134,25 +150,88 @@ def wikipedia_search(query: str) -> tuple[str | None, str]:
     return None, ""
 
 
+def duckduckgo_instant_answer(query: str) -> tuple[str | None, str]:
+    """Last-resort fallback: DDG's Instant Answer JSON API (different endpoint/infra
+    than ddgs' HTML scraping, so it can succeed even when ddg_search is blocked).
+    Only covers dictionary/disambiguation-style topics, but it's better than nothing."""
+    try:
+        r = requests.get(
+            "https://api.duckduckgo.com/",
+            params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
+            timeout=6,
+        ).json()
+        text = (r.get("AbstractText") or "").strip()
+        if text:
+            source = r.get("AbstractSource") or "DuckDuckGo"
+            return text[:1400], source
+    except Exception as e:
+        log.warning(f"DDG instant-answer error: {e}")
+    return None, ""
+
+
 def web_search(query: str) -> tuple[str | None, str]:
-    """Try DDG first (faster), then Wikipedia."""
+    """Try DDG full search first (best coverage), then Wikipedia, then DDG's
+    instant-answer API as a last resort. Each leg is independent so one backend
+    being rate-limited/blocked doesn't take down the whole feature."""
     content, src = ddg_search(query)
     if content:
         return content, src
-    return wikipedia_search(query)
+
+    content, src = wikipedia_search(query)
+    if content:
+        return content, src
+
+    return duckduckgo_instant_answer(query)
 
 
 # ══════════════════════════════════════
 # IMAGE GENERATION — Pollinations.ai (free, no key)
+# Size is no longer hardcoded square: the prompt is scanned for orientation/format
+# cues (portrait, landscape, passport photo, square, wallpaper, etc.) so the AI
+# is free to generate whatever shape actually fits the request. Falls back to a
+# balanced square only when nothing in the prompt implies a shape.
 # ══════════════════════════════════════
+def infer_image_size(prompt: str) -> tuple[int, int]:
+    """Pick sensible (width, height) for Pollinations based on cues in the prompt.
+    Keeps the long edge around ~1024-1152px for quality, short edge scaled down —
+    never upscales past that so generation stays fast and free-tier friendly."""
+    p = prompt.lower()
+
+    # Explicit "AxB" or "A:B" style hints, e.g. "1080x1920" or "16:9"
+    m = re.search(r"\b(\d{2,4})\s*[x×:]\s*(\d{2,4})\b", p)
+    if m:
+        w, h = int(m.group(1)), int(m.group(2))
+        scale = 1152 / max(w, h)
+        return max(64, round(w * scale)), max(64, round(h * scale))
+
+    # Passport / ID photo — standard near-square portrait crop
+    if re.search(r"passport|id photo|id card photo|visa photo", p):
+        return 827, 1063  # ~ 35x45mm passport-photo ratio
+
+    # Portrait cues
+    if re.search(r"\bportrait\b|\bvertical\b|\bmobile wallpaper\b|\bphone wallpaper\b|\bstory\b|\breels?\b|\btiktok\b|\b9:16\b", p):
+        return 864, 1536
+
+    # Landscape / widescreen cues
+    if re.search(r"\blandscape\b|\bhorizontal\b|\bwidescreen\b|\bdesktop wallpaper\b|\bbanner\b|\bpanorama\b|\bcinematic\b|\b16:9\b", p):
+        return 1536, 864
+
+    # Explicit square cue
+    if re.search(r"\bsquare\b|\b1:1\b", p):
+        return 1024, 1024
+
+    return 1024, 1024  # default — unchanged behaviour when no shape is implied
+
+
 def generate_image(prompt: str) -> tuple[str | None, str | None]:
     """Generates an image via Pollinations' free API. Returns (data_url, error)."""
     try:
+        width, height = infer_image_size(prompt)
         encoded = urllib.parse.quote(prompt.strip())
         seed = int(time.time() * 1000) % 10_000_000
         url = (
             f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?width=1024&height=1024&seed={seed}&nologo=true&safe=true"
+            f"?width={width}&height={height}&seed={seed}&nologo=true&safe=true"
         )
         r = requests.get(url, timeout=60, headers={"User-Agent": f"{BOT_NAME}AI/3.0"})
         content_type = r.headers.get("content-type", "")
@@ -676,7 +755,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "generate_image",
-            "description": "Generate a custom illustration, picture, or scene from a text description — e.g. 'a cat eating ice cream', 'a sunset over mountains', 'a robot playing guitar'. Use this for any request to draw, create, generate, paint, or make a PICTURE or IMAGE of something. Distinct from generate_avatar, which only makes small stylized profile-icon avatars — use generate_image for anything more detailed or scene-like.",
+            "description": "Generate a custom illustration, picture, or scene from a text description — e.g. 'a cat eating ice cream', 'a sunset over mountains', 'a robot playing guitar'. Use this for any request to draw, create, generate, paint, or make a PICTURE or IMAGE of something. Distinct from generate_avatar, which only makes small stylized profile-icon avatars — use generate_image for anything more detailed or scene-like. If the user implies a shape (portrait, landscape, passport photo, square, wallpaper, banner, 16:9, 9:16, etc.), keep that wording in the prompt you pass — the renderer picks image dimensions from it.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -935,9 +1014,19 @@ def init_db():
                 display_name TEXT NOT NULL,
                 pw_hash      TEXT NOT NULL,
                 pw_salt      TEXT NOT NULL,
-                created_at   TEXT NOT NULL
+                created_at   TEXT NOT NULL,
+                avatar       TEXT,
+                about        TEXT
             )
         """)
+        # Migration guard: existing DBs (like eka_users.db already in this repo)
+        # were created before avatar/about existed — add them if missing so we
+        # don't need people to delete their user database to get this update.
+        existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "avatar" not in existing_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN avatar TEXT")
+        if "about" not in existing_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN about TEXT")
 
 
 init_db()
@@ -967,7 +1056,7 @@ def create_user(username: str, display_name: str, password: str) -> tuple[dict |
                 "INSERT INTO users (username, display_name, pw_hash, pw_salt, created_at) VALUES (?, ?, ?, ?, ?)",
                 (username, display_name, pw_hash, pw_salt, datetime.utcnow().isoformat()),
             )
-            row = conn.execute("SELECT id, username, display_name FROM users WHERE username = ?", (username,)).fetchone()
+            row = conn.execute("SELECT id, username, display_name, avatar, about FROM users WHERE username = ?", (username,)).fetchone()
         return dict(row), None
     except sqlite3.IntegrityError:
         return None, "That username is already taken."
@@ -985,7 +1074,38 @@ def verify_user(username: str, password: str) -> tuple[dict | None, str | None]:
     if not secrets.compare_digest(check_hash, row["pw_hash"]):
         return None, "Invalid username or password."
 
-    return {"id": row["id"], "username": row["username"], "display_name": row["display_name"]}, None
+    return {"id": row["id"], "username": row["username"], "display_name": row["display_name"],
+            "avatar": row["avatar"], "about": row["about"]}, None
+
+
+def get_user_by_id(user_id: int) -> dict | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT id, username, display_name, avatar, about FROM users WHERE id = ?", (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def update_user_profile(user_id: int, display_name: str | None = None, about: str | None = None) -> tuple[dict | None, str | None]:
+    display_name = (display_name or "").strip()
+    if not display_name:
+        return None, "Display name can't be empty."
+    if len(display_name) > 32:
+        return None, "Display name is too long (max 32 characters)."
+    about = (about or "").strip()[:60]
+    with get_db() as conn:
+        conn.execute("UPDATE users SET display_name = ?, about = ? WHERE id = ?", (display_name, about, user_id))
+    return get_user_by_id(user_id), None
+
+
+def update_user_avatar(user_id: int, data_url: str | None) -> tuple[dict | None, str | None]:
+    # data_url is either a "data:image/...;base64,..." string or None to remove the photo
+    if data_url:
+        if not data_url.startswith("data:image/"):
+            return None, "Invalid image data."
+        if len(data_url) > 1_800_000:  # ~1.3MB decoded — plenty for a profile photo, keeps DB rows small
+            return None, "Image is too large. Please choose a smaller photo."
+    with get_db() as conn:
+        conn.execute("UPDATE users SET avatar = ? WHERE id = ?", (data_url, user_id))
+    return get_user_by_id(user_id), None
 
 
 # ══════════════════════════════════════
@@ -1003,10 +1123,26 @@ def get_user_api_key() -> str | None:
 
 
 # ══════════════════════════════════════
+# AUTH GUARD
+# The chat UI can be served from this Flask app OR from a separate static host
+# (GitHub Pages) that calls these APIs cross-origin with credentials — so login
+# state can't just be checked server-side when rendering the page in that case.
+# require_login() covers the same-origin path; /api/me covers the cross-origin one.
+# ══════════════════════════════════════
+def require_login():
+    return "user_id" in session
+
+
+# ══════════════════════════════════════
 # ROUTES
 # ══════════════════════════════════════
 @app.route("/")
 def index():
+    # Gate the chat page itself: no session → send to /login first.
+    # (When the chat UI is hosted separately on GitHub Pages, that copy calls
+    # GET /api/me on load and redirects client-side instead — see script.js.)
+    if not require_login():
+        return redirect(url_for("login_page"))
     return render_template("index.html", bot_name=BOT_NAME)
 
 
@@ -1028,6 +1164,55 @@ def signup_page():
 def logout():
     session.clear()
     return redirect(url_for("login_page"))
+
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    # JSON/fetch-friendly logout for the cross-origin (GitHub Pages) frontend,
+    # which can't follow a same-origin redirect the way the Flask-served page can.
+    session.clear()
+    return jsonify({"ok": True, "redirect": url_for("login_page", _external=True)})
+
+
+@app.route("/api/me")
+def api_me():
+    # Cross-origin login check the standalone frontend calls on page load.
+    if not require_login():
+        return jsonify({"error": "Not logged in"}), 401
+    user = get_user_by_id(session["user_id"])
+    if not user:
+        session.clear()
+        return jsonify({"error": "Not logged in"}), 401
+    return jsonify({"user": user})
+
+
+@app.route("/api/profile", methods=["POST"])
+def api_update_profile():
+    if not require_login():
+        return jsonify({"error": "Not logged in"}), 401
+    payload = request.get_json(silent=True) or {}
+    user, err = update_user_profile(
+        session["user_id"],
+        display_name=payload.get("display_name"),
+        about=payload.get("about"),
+    )
+    if err:
+        return jsonify({"error": err}), 400
+    session["display_name"] = user["display_name"]
+    log.info(f"→ profile updated: {user['username']}")
+    return jsonify({"user": user})
+
+
+@app.route("/api/profile/avatar", methods=["POST"])
+def api_update_avatar():
+    if not require_login():
+        return jsonify({"error": "Not logged in"}), 401
+    payload = request.get_json(silent=True) or {}
+    user, err = update_user_avatar(session["user_id"], payload.get("avatar"))
+    if err:
+        return jsonify({"error": err}), 400
+    log.info(f"→ avatar updated: {user['username']}")
+    return jsonify({"user": user})
 
 
 @app.route("/api/signup", methods=["POST"])
@@ -1078,9 +1263,19 @@ def chat():
 
     log.info(f"→ {user_msg[:80]}{' [+image]' if image else ''}{' [BYOK]' if user_key else ''}")
 
+    # If the person is logged in, let the AI know who it's talking to — pulled
+    # from the server-side session (not the request body), so it can't be spoofed
+    # by editing frontend JS, and works without the frontend having to pass it.
+    user_name_line = ""
+    if require_login():
+        display_name = (session.get("display_name") or "").strip()
+        if display_name:
+            user_name_line = f"\nThe person you're talking to is named {display_name} — address them by name when it feels natural, don't force it into every reply."
+
     # Image path — route straight to a vision-capable model, skip quick-replies/web-search
     if image:
-        reply = ai_query(user_msg, history=history, image_data_url=image, api_key=user_key)
+        system = (SYS_BASE + user_name_line) if user_name_line else None
+        reply = ai_query(user_msg, history=history, system=system, image_data_url=image, api_key=user_key)
         log.info(f"← ai+vision: {reply[:60]}")
         return jsonify({"reply": reply, "source": "ai"})
 
@@ -1114,13 +1309,14 @@ def chat():
     if use_web:
         content, src = web_search(user_msg)
         if content:
-            system = SYS_WEB.replace("{web_content}", content)
+            system = SYS_WEB.replace("{web_content}", content) + user_name_line
             reply  = ai_query(user_msg, history=history, system=system, api_key=user_key)
             log.info(f"← web+ai [{src}]: {reply[:60]}")
             return jsonify({"reply": reply, "source": "web+ai", "web_source": src})
 
     # Standard AI
-    reply = ai_query(user_msg, history=history, api_key=user_key)
+    system = (SYS_BASE + user_name_line) if user_name_line else None
+    reply = ai_query(user_msg, history=history, system=system, api_key=user_key)
     log.info(f"← ai: {reply[:60]}")
     return jsonify({"reply": reply, "source": "ai"})
 

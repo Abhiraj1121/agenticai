@@ -10,6 +10,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const API_BASE = IS_LOCAL ? '' : 'https://agenticai-aowj.onrender.com';
 
   // ══════════════════════════════
+  // AUTH GATE — runs first, before anything else initializes.
+  // This page may be hosted separately from the Flask backend (GitHub Pages),
+  // so Flask's own server-side redirect in index() can't protect it — this
+  // client-side check is what actually enforces "no login → straight to
+  // /login" for that deployment. The launch screen (~1.9s minimum) covers the
+  // screen while this resolves, so a logged-out visitor never sees chat UI
+  // flash before being redirected.
+  // ══════════════════════════════
+  let authGateResolved = false;
+  fetch(`${API_BASE}/api/me`, { credentials: 'include' })
+    .then(res => {
+      if (!res.ok) throw new Error('not logged in');
+      authGateResolved = true;
+    })
+    .catch(() => {
+      window.location.replace(`${API_BASE}/login`);
+    });
+
+  // ══════════════════════════════
   // ICON LIBRARY (inline SVG — no emoji anywhere in the UI)
   // ══════════════════════════════
   const ICONS = {
@@ -95,16 +114,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingWeb       = document.getElementById('settingWeb');
   const settingLang      = document.getElementById('settingLang');
   const themeSwatches    = document.querySelectorAll('.theme-swatch');
+  const profileUsername  = document.getElementById('profileUsername');
   const profileName      = document.getElementById('profileName');
-  const profileEmail     = document.getElementById('profileEmail');
   const profileAbout     = document.getElementById('profileAbout');
   const saveProfileBtn   = document.getElementById('saveProfile');
+  const profileStatus    = document.getElementById('profileStatus');
+  const profileLogoutBtn = document.getElementById('profileLogoutBtn');
   const userAvatarBig    = document.getElementById('userAvatarBig');
   const userAvatarSmall  = document.getElementById('userAvatarSmall');
   const sidebarUserName  = document.getElementById('sidebarUserName');
   const sidebarUserEmail = document.getElementById('sidebarUserEmail');
   const avatarUploadZone = document.getElementById('avatarUploadZone');
   const avatarFileInput  = document.getElementById('avatarFileInput');
+  const avatarRemoveBtn  = document.getElementById('avatarRemoveBtn');
+  // Settings-panel profile tab mirrors the same account data with its own IDs
+  // (two DOM nodes can't share an id) — kept in sync with the sidebar/profile
+  // modal by loadProfile()/every save handler below.
+  const settingsAvatarZone   = document.getElementById('settingsAvatarZone');
+  const settingsAvatarBig    = document.getElementById('settingsAvatarBig');
+  const settingsAvatarInput  = document.getElementById('settingsAvatarInput');
+  const settingsAvatarRemove = document.getElementById('settingsAvatarRemove');
+  const settingsProfileUsername = document.getElementById('settingsProfileUsername');
+  const settingsProfileName  = document.getElementById('settingsProfileName');
+  const settingsProfileAbout = document.getElementById('settingsProfileAbout');
+  const settingsProfileSave  = document.getElementById('settingsProfileSave');
+  const settingsProfileStatus= document.getElementById('settingsProfileStatus');
+  const settingsLogoutBtn    = document.getElementById('settingsLogoutBtn');
   const photoInput       = document.getElementById('photoInput');
   const attachBtn        = document.getElementById('attachBtn');
   const attachPreview    = document.getElementById('attachPreview');
@@ -122,11 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingReduceMotion = document.getElementById('settingReduceMotion');
   const settingSoundFx   = document.getElementById('settingSoundFx');
   const settingEnterSend = document.getElementById('settingEnterSend');
-  const onboardOverlay   = document.getElementById('onboardOverlay');
-  const obSave           = document.getElementById('obSave');
-  const obGuest          = document.getElementById('obGuest');
-  const obName           = document.getElementById('obName');
-  const obEmail          = document.getElementById('obEmail');
 
   // ── STATE ──
   let chatHistory      = [];
@@ -311,30 +341,69 @@ document.addEventListener('DOMContentLoaded', () => {
   userOverlay?.addEventListener('click',    (e) => { if (e.target === userOverlay) closeModal(userOverlay); });
 
   // ══════════════════════════════
-  // ONBOARDING (first visit)
+  // SETTINGS — nav rail switching + sliding indicator + ripple
   // ══════════════════════════════
-  function checkOnboarding() {
-    const seen = localStorage.getItem('eka-onboarded');
-    if (!seen) openModal(onboardOverlay);
-  }
+  (function initSettingsNav() {
+    const nav = document.getElementById('settingsNav');
+    const indicator = document.getElementById('settingsNavIndicator');
+    if (!nav || !indicator) return;
+    const items = [...nav.querySelectorAll('.settings-nav-item')];
+    const panels = [...document.querySelectorAll('.settings-panel')];
 
-  obSave?.addEventListener('click', () => {
-    const name  = obName.value.trim();
-    const email = obEmail.value.trim();
-    if (name) {
-      const profile = { name, email };
-      localStorage.setItem('eka-profile', JSON.stringify(profile));
-      loadProfile();
+    function moveIndicator(el) {
+      const mobile = window.matchMedia('(max-width:720px)').matches;
+      if (mobile) {
+        indicator.style.transform = `translateX(${el.offsetLeft}px)`;
+        indicator.style.width = el.offsetWidth + 'px';
+      } else {
+        indicator.style.transform = `translateY(${el.offsetTop}px)`;
+        indicator.style.height = el.offsetHeight + 'px';
+        indicator.style.width = '';
+      }
     }
-    localStorage.setItem('eka-onboarded', '1');
-    closeModal(onboardOverlay);
-    showEmptyState();
-  });
 
-  obGuest?.addEventListener('click', () => {
-    localStorage.setItem('eka-onboarded', '1');
-    closeModal(onboardOverlay);
-    showEmptyState();
+    function activate(item, scroll = true) {
+      items.forEach(i => i.classList.toggle('active', i === item));
+      panels.forEach(p => p.classList.toggle('active', p.dataset.panel === item.dataset.section));
+      moveIndicator(item);
+      if (scroll) item.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+
+    items.forEach(item => item.addEventListener('click', () => activate(item)));
+    window.addEventListener('resize', () => {
+      const active = items.find(i => i.classList.contains('active'));
+      if (active) moveIndicator(active);
+    });
+
+    // Position indicator once the modal becomes visible (needs real layout
+    // dimensions). It starts at opacity:0 in CSS and only fades in via the
+    // .ready class here — since the modal itself animates in (~280ms), this
+    // avoids ever showing the box mid-flight while ancestor sizing settles.
+    const settingsObs = new MutationObserver(() => {
+      if (settingsOverlay?.classList.contains('open')) {
+        const active = items.find(i => i.classList.contains('active')) || items[0];
+        requestAnimationFrame(() => { moveIndicator(active); indicator.classList.add('ready'); });
+      } else {
+        indicator.classList.remove('ready');
+      }
+    });
+    if (settingsOverlay) settingsObs.observe(settingsOverlay, { attributes: true, attributeFilter: ['class'] });
+  })();
+
+  // Fluid ripple feedback on tappable settings controls
+  document.querySelectorAll('.theme-swatch, .danger-btn, .save-btn, .auth-btn, .icon-btn, .settings-nav-item, .toggle-switch').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (document.body.classList.contains('reduce-motion')) return;
+      const rect = el.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      const ripple = document.createElement('span');
+      ripple.className = 'settings-ripple';
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      ripple.style.top  = (e.clientY - rect.top - size / 2) + 'px';
+      el.appendChild(ripple);
+      ripple.addEventListener('animationend', () => ripple.remove());
+    });
   });
 
   // ══════════════════════════════
@@ -380,68 +449,119 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ══════════════════════════════
-  // USER PROFILE + AVATAR PHOTO
+  // USER PROFILE + AVATAR PHOTO — backed by the account (server), not localStorage.
+  // Two copies of the form exist (sidebar/profile modal + the Settings > Profile
+  // tab) sharing one account, so every read/write touches both sets of elements.
   // ══════════════════════════════
-  function loadProfile() {
-    const p = JSON.parse(localStorage.getItem('eka-profile') || '{}');
-    const photo = localStorage.getItem('eka-avatar');
+  let currentUser = null; // {id, username, display_name, avatar, about}
 
-    if (p.name) {
-      if (profileName) profileName.value = p.name;
-      sidebarUserName.textContent = p.name;
-    }
-    if (p.email) {
-      if (profileEmail) profileEmail.value = p.email;
-      sidebarUserEmail.textContent = p.email;
-    }
-    if (p.about && profileAbout) profileAbout.value = p.about;
+  function renderProfile(user) {
+    currentUser = user;
+    const initial = (user.display_name || user.username || '?').trim()[0].toUpperCase();
+    const avatarHtml = user.avatar ? `<img src="${user.avatar}" alt="avatar" />` : initial;
 
-    // Avatar: photo takes priority, else initial letter
-    if (photo) {
-      setAvatarPhoto(photo);
-    } else if (p.name) {
-      const init = p.name.trim()[0].toUpperCase();
-      userAvatarBig.innerHTML = init;
-      userAvatarSmall.innerHTML = init;
+    if (userAvatarBig)   userAvatarBig.innerHTML = avatarHtml;
+    if (userAvatarSmall) userAvatarSmall.innerHTML = avatarHtml;
+    if (settingsAvatarBig) settingsAvatarBig.innerHTML = avatarHtml;
+
+    if (sidebarUserName)  sidebarUserName.textContent = user.display_name || user.username;
+    if (sidebarUserEmail) sidebarUserEmail.textContent = '@' + user.username;
+
+    if (profileUsername) profileUsername.value = user.username;
+    if (profileName)     profileName.value = user.display_name || '';
+    if (profileAbout)    profileAbout.value = user.about || '';
+    if (avatarRemoveBtn) avatarRemoveBtn.style.display = user.avatar ? 'block' : 'none';
+
+    if (settingsProfileUsername) settingsProfileUsername.value = user.username;
+    if (settingsProfileName)     settingsProfileName.value = user.display_name || '';
+    if (settingsProfileAbout)    settingsProfileAbout.value = user.about || '';
+    if (settingsAvatarRemove)    settingsAvatarRemove.style.display = user.avatar ? 'block' : 'none';
+
+    updateEmptyStateText(); // refresh greeting now that we know the name (may have shown generic text at init)
+  }
+
+  async function loadProfile() {
+    try {
+      const res = await fetch(`${API_BASE}/api/me`, { credentials: 'include' });
+      if (!res.ok) { window.location.href = `${API_BASE}/login`; return; }
+      const data = await res.json();
+      renderProfile(data.user);
+    } catch (err) {
+      console.error('Failed to load profile', err);
     }
   }
 
-  function setAvatarPhoto(dataUrl) {
-    userAvatarBig.innerHTML   = `<img src="${dataUrl}" alt="avatar" />`;
-    userAvatarSmall.innerHTML = `<img src="${dataUrl}" alt="avatar" />`;
-    if (document.getElementById('userAvatarBig')) userAvatarBig.innerHTML = `<img src="${dataUrl}" alt="avatar" />`;
+  async function saveProfileFields(name, about, statusEl) {
+    if (statusEl) statusEl.textContent = 'Saving…';
+    try {
+      const res = await fetch(`${API_BASE}/api/profile`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ display_name: name, about })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save profile');
+      renderProfile(data.user);
+      if (statusEl) statusEl.textContent = 'Saved ✓';
+      showToast('Profile saved', ICONS.check);
+      updateEmptyStateText();
+      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+    } catch (err) {
+      if (statusEl) statusEl.textContent = err.message;
+      showToast(err.message, ICONS.close);
+    }
   }
 
-  // Tap avatar zone to upload photo
+  async function uploadAvatar(dataUrl, statusEl) {
+    try {
+      const res = await fetch(`${API_BASE}/api/profile/avatar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ avatar: dataUrl })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update photo');
+      renderProfile(data.user);
+    } catch (err) {
+      if (statusEl) statusEl.textContent = err.message;
+      showToast(err.message, ICONS.close);
+    }
+  }
+
+  function readFileAsDataUrl(file, onDone) {
+    const reader = new FileReader();
+    reader.onload = (ev) => onDone(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function doLogout() {
+    try { await fetch(`${API_BASE}/api/logout`, { method: 'POST', credentials: 'include' }); }
+    catch (err) { console.error('Logout request failed', err); }
+    window.location.href = `${API_BASE}/login`;
+  }
+
+  // Sidebar/profile-modal avatar upload
   avatarUploadZone?.addEventListener('click', () => avatarFileInput.click());
   avatarFileInput?.addEventListener('change', (e) => {
     const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const data = ev.target.result;
-      localStorage.setItem('eka-avatar', data);
-      setAvatarPhoto(data);
-    };
-    reader.readAsDataURL(file);
+    readFileAsDataUrl(file, (data) => uploadAvatar(data, profileStatus));
   });
-
-  // Live initial preview
-  profileName?.addEventListener('input', () => {
-    const v = profileName.value.trim();
-    if (!localStorage.getItem('eka-avatar'))
-      userAvatarBig.innerHTML = v ? v[0].toUpperCase() : '?';
-  });
+  avatarRemoveBtn?.addEventListener('click', () => uploadAvatar(null, profileStatus));
 
   saveProfileBtn?.addEventListener('click', () => {
-    localStorage.setItem('eka-profile', JSON.stringify({
-      name: profileName.value.trim(),
-      email: profileEmail.value.trim(),
-      about: profileAbout?.value?.trim() || ''
-    }));
-    loadProfile();
-    closeModal(userOverlay);
-    showToast('Profile saved', ICONS.check);
+    saveProfileFields(profileName.value.trim(), profileAbout?.value?.trim() || '', profileStatus);
   });
+  profileLogoutBtn?.addEventListener('click', doLogout);
+
+  // Settings > Profile tab — separate DOM nodes, same account
+  settingsAvatarZone?.addEventListener('click', () => settingsAvatarInput.click());
+  settingsAvatarInput?.addEventListener('change', (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    readFileAsDataUrl(file, (data) => uploadAvatar(data, settingsProfileStatus));
+  });
+  settingsAvatarRemove?.addEventListener('click', () => uploadAvatar(null, settingsProfileStatus));
+  settingsProfileSave?.addEventListener('click', () => {
+    saveProfileFields(settingsProfileName.value.trim(), settingsProfileAbout?.value?.trim() || '', settingsProfileStatus);
+  });
+  settingsLogoutBtn?.addEventListener('click', doLogout);
 
   loadProfile();
 
@@ -715,6 +835,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Wrap any rendered <table> in a horizontally scrollable container so wide
+  // tables never stretch the chat bubble past the column — matches the code-block
+  // overflow pattern above instead of letting the bubble grow or clip content.
+  function wrapTables(container) {
+    container.querySelectorAll('table').forEach(table => {
+      if (table.parentElement.classList.contains('table-scroll')) return; // already wrapped
+      const wrap = document.createElement('div');
+      wrap.className = 'table-scroll';
+      table.parentNode.insertBefore(wrap, table);
+      wrap.appendChild(table);
+    });
+  }
+
   function addBubble(text, who = 'bot', source = '', animate = false, imgData = null, idx = null) {
     if (voiceOnly) return;
 
@@ -748,15 +881,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    if (animate && who === 'bot') {
-      let i = 0; const raw = text;
+    if (animate && who === 'bot' && !document.body.classList.contains('reduce-motion')) {
+      // ChatGPT-style reveal: text arrives in small word-clusters per tick
+      // instead of a strict one-character crawl — a few words appear, then the
+      // rest of that burst lands together, which reads as faster/livelier while
+      // still feeling like a live response rather than an instant dump.
+      const words = text.split(/(\s+)/); // keep whitespace tokens so spacing is preserved
+      let wi = 0;
       const timer = setInterval(() => {
-        if (i < raw.length) { i++; content.innerHTML = typeof marked !== 'undefined' ? marked.parse(raw.slice(0,i)) : raw.slice(0,i); chat.scrollTop = chat.scrollHeight; }
-        else { clearInterval(timer); enhanceCodeBlocks(content); finalize(); }
-      }, 16);
+        if (wi < words.length) {
+          // reveal 2–4 word-tokens per tick, randomized slightly for a natural cadence
+          wi += 2 + Math.floor(Math.random() * 3);
+          const chunk = words.slice(0, wi).join('');
+          content.innerHTML = typeof marked !== 'undefined' ? marked.parse(chunk) : chunk;
+          chat.scrollTop = chat.scrollHeight;
+        } else {
+          clearInterval(timer);
+          content.innerHTML = typeof marked !== 'undefined' ? marked.parse(text) : text;
+          enhanceCodeBlocks(content);
+          wrapTables(content);
+          finalize();
+        }
+      }, 35);
     } else {
       content.innerHTML = typeof marked !== 'undefined' ? marked.parse(text) : text;
       enhanceCodeBlocks(content);
+      wrapTables(content);
       finalize();
     }
 
@@ -1670,9 +1820,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateEmptyStateText() {
     if (!emptyStateText) return;
-    const p = JSON.parse(localStorage.getItem('eka-profile') || '{}');
-    emptyStateText.innerHTML = p.name
-      ? `Hello <strong>${escapeHtml(p.name)}</strong>, how can I help you?`
+    const name = currentUser?.display_name;
+    emptyStateText.innerHTML = name
+      ? `Hello <strong>${escapeHtml(name)}</strong>, how can I help you?`
       : `Hello! How can I help you today?`;
   }
 
@@ -1704,7 +1854,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // ══════════════════════════════
   currentSessionId = genId();
   renderSessionList();
-  checkOnboarding();
 
   if (chatHistory.length === 0) showEmptyState(); else hideEmptyState();
 
