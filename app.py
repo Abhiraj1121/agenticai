@@ -689,7 +689,7 @@ TOOLS = {
 # call. Slash commands (Modules 1-5) remain as direct shortcuts and bypass this
 # entirely — this only activates for natural-language requests.
 # ══════════════════════════════════════
-ROUTER_MODEL = "inclusionai/ling-3.0-flash-fin:free"
+ROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
 
 TOOL_SCHEMAS = [
     {
