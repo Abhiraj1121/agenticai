@@ -1225,8 +1225,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         addBubble(res.error || 'Avatar generation failed — please try again.', 'bot');
       }
-    } catch {
+    } catch (err) {
       removeTyping(); isThinking = false; setStatus('ready');
+      console.error('avatar generation failed:', err);
       addBubble('Something went wrong generating that avatar. Please try again.', 'bot');
     }
   }
@@ -1377,8 +1378,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       autosave();
-    } catch {
+    } catch (err) {
       removeTyping(); isThinking = false; setStatus('ready');
+      console.error('document generation failed:', err);
       addBubble('Something went wrong generating that document. Please try again.', 'bot');
     }
   }
@@ -1402,8 +1404,9 @@ document.addEventListener('DOMContentLoaded', () => {
       await addDiagramBubble(mermaidCode, prompt, verification);
       chatHistory.push({ role: 'assistant', content: `[Generated a diagram for: ${prompt}]\n\`\`\`mermaid\n${mermaidCode}\n\`\`\`` });
       autosave();
-    } catch {
+    } catch (err) {
       removeTyping(); isThinking = false; setStatus('ready');
+      console.error('diagram generation failed:', err);
       addBubble('Something went wrong generating that diagram. Please try again.', 'bot');
     }
   }
@@ -1450,8 +1453,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       autosave();
-    } catch {
+    } catch (err) {
       removeTyping(); isThinking = false; setStatus('ready');
+      console.error('code generation failed:', err);
       addBubble('Something went wrong generating that code. Please try again.', 'bot');
     }
   }
@@ -1549,8 +1553,9 @@ document.addEventListener('DOMContentLoaded', () => {
         speak(stripForSpeech(res.reply), () => setStatus('ready'));
         autosave();
       }, 200);
-    } catch {
+    } catch (err) {
       removeTyping(); isThinking = false; setStatus('ready');
+      console.error('fetchAndRenderReply failed:', err);
       addBubble('Something went wrong. Please try again.', 'bot');
     }
   }
@@ -1666,8 +1671,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           addBubble(res.error || 'Image generation failed — please try again.', 'bot');
         }
-      } catch {
+      } catch (err) {
         removeTyping(); isThinking = false; setStatus('ready');
+        console.error('image generation failed:', err);
         addBubble('Something went wrong generating that image. Please try again.', 'bot');
       }
       return;
