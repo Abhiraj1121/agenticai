@@ -1299,7 +1299,11 @@ def chat():
         if tool.get("needs_key") and not (user_key or AI_API_KEY):
             log.warning(f"router picked {tool_name} but no key available — falling back to text")
         else:
-            data, err = tool["fn"](routed["args"], api_key=user_key)
+            try:
+                data, err = tool["fn"](routed["args"], api_key=user_key)
+            except Exception as e:
+                log.error(f"tool '{tool_name}' crashed: {e}")
+                return jsonify({"reply": "That tool hit an unexpected error — please try again.", "source": "system"})
             log.info(f"← router→tool:{tool_name} {'ok' if not err else 'error: ' + err}")
             if err:
                 return jsonify({"reply": err, "source": "system"})
