@@ -53,8 +53,9 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://abhiraj1121.github.io/agentica
 # needed so attached photos are only routed to models that can actually see them.
 MODELS = [
     {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "max_tokens": 2026, "temp": 0.65, "vision": False},
-    #{"id": "google/gemma-4-26b-a4b-it:free", "max_tokens": 2026, "temp": 0.65, "vision": True},
+    {"id": "minimax/minimax-m3:free", "max_tokens": 2026, "temp": 0.65, "vision": True},
     {"id": "inclusionai/ling-3.0-flash-fin:free", "max_tokens": 2026, "temp": 0.65, "vision": False},
+    {"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "max_tokens": 2026, "temp": 0.65, "vision": True},
 ]
 
 # ── System prompts ──
@@ -407,7 +408,7 @@ def tool_generate_avatar(args: dict, api_key: str = None) -> tuple[dict | None, 
 # TOOL ORCHESTRATOR — Module 3: AI Diagram Generator (Mermaid.js)
 # Generates Mermaid syntax only — rendering happens client-side via mermaid.js.
 # ══════════════════════════════════════
-DIAGRAM_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+DIAGRAM_MODEL = "inclusionai/ling-3.0-flash-fin:free"
 
 DIAGRAM_SYSTEM = (
     "You are a diagram generation engine. Respond with NOTHING but a single fenced "
@@ -488,7 +489,7 @@ def tool_generate_diagram(args: dict, api_key: str = None) -> tuple[dict | None,
 # ══════════════════════════════════════
 import io  # local import kept near usage; io is stdlib, always available
 
-DOC_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+DOC_MODEL = "inclusionai/ling-3.0-flash-fin:free"
 
 DOC_TYPES = {"report", "resume", "article", "letter", "proposal", "summary", "essay"}
 DOC_FORMATS = {"md", "docx", "pdf"}
@@ -688,7 +689,7 @@ TOOLS = {
 # call. Slash commands (Modules 1-5) remain as direct shortcuts and bypass this
 # entirely — this only activates for natural-language requests.
 # ══════════════════════════════════════
-ROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
+ROUTER_MODEL = "inclusionai/ling-3.0-flash-fin:free"
 
 TOOL_SCHEMAS = [
     {
