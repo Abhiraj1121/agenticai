@@ -234,7 +234,13 @@ def generate_image(prompt: str) -> tuple[str | None, str | None]:
             f"https://image.pollinations.ai/prompt/{encoded}"
             f"?width={width}&height={height}&seed={seed}&nologo=true&safe=true"
         )
-        r = requests.get(url, timeout=60, headers={"User-Agent": f"{BOT_NAME}AI/3.0"})
+        # NOTE: this timeout must stay comfortably under gunicorn's worker timeout
+        # (set to 55s via the Procfile's --timeout flag). If Pollinations takes
+        # longer than the *worker* timeout, gunicorn SIGABRTs the whole process
+        # before this function's own except blocks ever get a chance to run —
+        # that shows up in logs as "WORKER TIMEOUT" / SystemExit, not a clean
+        # Python exception, and the request silently 500s with no JSON body.
+        r = requests.get(url, timeout=45, headers={"User-Agent": f"{BOT_NAME}AI/3.0"})
         content_type = r.headers.get("content-type", "")
         if r.status_code == 200 and content_type.startswith("image"):
             b64 = base64.b64encode(r.content).decode()
