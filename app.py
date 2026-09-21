@@ -8,7 +8,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from dotenv import load_dotenv
 from flask_cors import CORS
-#from ddgs import DDGS
+from ddgs import DDGS
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
@@ -52,10 +52,10 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://abhiraj1121.github.io/agentica
 # "vision": True means the model accepts multimodal (image_url) content —
 # needed so attached photos are only routed to models that can actually see them.
 MODELS = [
-    {"id": "nvidia/nemotron-3-ultra-550b-a55b:free", "max_tokens": 2026, "temp": 0.65, "vision": False},
-    {"id": "minimax/minimax-m3:free", "max_tokens": 2026, "temp": 0.65, "vision": True},
-    {"id": "inclusionai/ling-3.0-flash-fin:free", "max_tokens": 2026, "temp": 0.65, "vision": False},
-    {"id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "max_tokens": 2026, "temp": 0.65, "vision": True},
+    {"id": "nvidia/nemotron-3-super-120b-a12b:free", "max_tokens": 2026, "temp": 0.65, "vision": False}, #only text
+    {"id": "liquid/lfm-2.5-2.6b:free", "max_tokens": 2026, "temp": 0.65, "vision": False}, #only text
+    {"id": "inclusionai/ling-3.0-flash-vl:free", "max_tokens": 2026, "temp": 0.65, "vision": True}, #image redy
+    {"id": "nex-agi/nex-n2.5-mini:free", "max_tokens": 2026, "temp": 0.65, "vision": True}, #image redy
 ]
 
 # ── System prompts ──
