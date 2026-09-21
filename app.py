@@ -275,7 +275,7 @@ def tool_generate_image(args: dict, api_key: str = None) -> tuple[dict | None, s
 # Generates code via a code-specialized model, then runs STATIC-ONLY checks
 # (syntax parsing / linting) — never executes generated code server-side.
 # ══════════════════════════════════════
-CODE_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+CODE_MODEL = "inclusionai/ling-3.0-flash-vl:free"
 
 CODEGEN_SYSTEM = (
     "You are a precise code generation engine. Respond with NOTHING but a single "
@@ -695,7 +695,7 @@ TOOLS = {
 # call. Slash commands (Modules 1-5) remain as direct shortcuts and bypass this
 # entirely — this only activates for natural-language requests.
 # ══════════════════════════════════════
-ROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+ROUTER_MODEL = "nvidia/nemotron-3-super-120b-a12b:free"
 
 TOOL_SCHEMAS = [
     {
